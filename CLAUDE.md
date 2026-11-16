@@ -61,14 +61,23 @@ assistant/
     matching.py           # name/alias lookup against the YAML allowlists
     phone.py              # number normalization to E.164 (PK formats) + display format
     contacts.py           # contacts.yaml loading (BaseLoader: numbers stay strings) + matching
+    script.py             # Devanagari / Urdu / Latin detection; speakable() for TTS
+    timing.py             # per-step timings (rec, stt, brain, check, skill)
   skills/
     base.py               # Skill base class
     open_app.py           # one file per skill
     _whatsapp.py          # shared helpers; a leading "_" keeps a module out of skill discovery
   interfaces/             # NOT "io/": that would shadow Python's built-in io module
-    text_io.py            # Phase 1: typed input
-    stt.py, tts.py        # Phase 3: speech in/out
+    text_io.py            # Phase 1: typed input (--text)
+    voice_io.py           # Phase 3: push-to-talk in, spoken + printed out
+    audio.py              # mic recorder (16 kHz mono) + beeps
+    hotkey.py             # push-to-talk key state machine + pynput wiring
+    stt/                  # one file per STT provider: groq.py (default), local.py (faster-whisper)
+                          #   __init__.py = fallback chain + Devanagari guard
+    tts.py                # pyttsx3 (Windows voices); speaks an English-readable version
     wake.py               # Phase 5: wake word
+  tools/
+    stt_script_test.py    # record clips, compare STT language settings (python -m assistant.tools.stt_script_test)
   config/
     settings.yaml         # assistant name, provider, model, voice, hotkey
     apps.yaml             # spoken name + aliases -> executable path or URI
@@ -113,7 +122,7 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
 - [x] 0. Setup: tools installed, folder, git, this file
 - [x] 1. Text brain + skill system + open_app / open_website / get_time
 - [x] 2. WhatsApp message skill + contacts
-- [ ] 3. Voice: push-to-talk hotkey, speech-to-text, text-to-speech
+- [x] 3. Voice: push-to-talk hotkey, speech-to-text, text-to-speech
 - [ ] 4. Call skill, coding skill (Claude Code), reminders
 - [ ] 5. Wake word, system tray app, start on boot
 - [ ] 6. Product prep (later)
@@ -125,11 +134,36 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
   Model chosen by a 10-command English/Roman Urdu/Urdu test (gpt-oss-20b reworded a message;
   llama-3.x models returned 404 for this key). Free tier limits for gpt-oss-120b per the Groq
   docs page (unlabeled plan): 30 RPM, 1K RPD, 8K TPM, 200K TPD.
-- Python 3.14 in `.venv`. If faster-whisper / openWakeWord lack 3.14 wheels in Phase 3/5, add a 3.12 venv.
+- PC: i5-1235U (2P+8E cores), 16 GB RAM, Intel Iris Xe, no NVIDIA → local STT is CPU-only.
+- Python 3.14 in `.venv`. All Phase 3 packages install on 3.14 (no 3.12 venv needed).
+- **Smart App Control is ON** (keep it on). It blocks unsigned DLLs with little reputation:
+  ctranslate2 4.9.0 is blocked, so **ctranslate2 is pinned to 4.8.5**. Check new binary
+  packages for "An Application Control policy has blocked this file" before upgrading.
+- Microsoft Visual C++ Redistributable 2015+ x64 (14.52) installed via winget (2026-11-17);
+  the old 2017 runtime crashed faster-whisper and broke onnxruntime.
+- faster-whisper 1.2.1 can't decode files with av 19; VisionX always passes numpy arrays.
 - `claude` CLI is not on PATH yet (needed in Phase 4): `npm i -g @anthropic-ai/claude-code`.
 - WhatsApp Desktop (Store, 5319275A.WhatsAppDesktop) is installed; the `whatsapp:` protocol is registered.
-- Brain is single-turn: when a skill asks a question ("Which Ali?"), the user retypes the full command.
-- Confirmation accepts only: yes / y / haan / han / ji / haan ji. Anything else cancels.
+- Follow-ups: when VisionX asks a question (brain or skill check), the next input is sent to
+  the brain together with the original command, once; then it's cleared.
+- Confirmation accepts only: yes / y / haan / han / ji / haan ji (also in Urdu script:
+  ہاں / جی / ہاں جی). **Voice mode only** also accepts how Whisper writes a spoken ji/haa:
+  G / Gee / Jee / ہا (user decision 2026-11-17). "Huh" and anything else cancels.
+
+## Voice (Phase 3) decisions
+- `python -m assistant.main` = voice (hold Ctrl+Alt+Space), `--text` = typed mode.
+- STT: Groq `whisper-large-v3-turbo` (≈0.2–0.6 s), fallback local faster-whisper `small` int8,
+  8 threads. Benchmark on this CPU (3.5 s clip, language fixed): base 1.1 s, small 3.7 s
+  (turbo not tested: too slow to download/run here). Small chosen for Urdu accuracy; it's only
+  the fallback. Switch to `base` in settings.yaml if the fallback feels slow.
+- Script: `stt.language: en` + a Roman Urdu `stt.prompt`. From the stt_script_test with 8 real
+  clips: en+prompt and auto+prompt 8/8 Latin; auto alone gave Devanagari 2/8; en alone
+  translated Roman Urdu to English. Devanagari guard: retry once with `ur`, else drop + ask to repeat.
+- TTS: pyttsx3 (Zira). Piper not used: no Urdu voice, needs onnxruntime + model download.
+  Non-Latin text (e.g. an Urdu-script WhatsApp message) is replaced in speech by "the message
+  on screen"; the screen always shows the exact text that will be sent.
+- Timings (`show_timings`): rec / stt / brain / check / skill and release→action (target < 3 s)
+  are printed and logged to actions.jsonl.
 - Git: push to `origin` (github.com/umeriqbal633/hey-visionx) once per finished phase.
 
 ## Skill notes

@@ -11,7 +11,10 @@ class TextIO:
     def __init__(self, assistant_name: str = "VisionX") -> None:
         self.name = assistant_name
 
-    def listen(self) -> str | None:
+    def note(self, text: str) -> None:
+        print(text)
+
+    def listen(self, timings=None) -> str | None:
         """Next command, or None when the user is done (Ctrl+Z/Ctrl+D or Ctrl+C)."""
         try:
             return clean(input("You: "))

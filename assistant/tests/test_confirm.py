@@ -4,7 +4,8 @@ from assistant.core.confirm import confirm, is_yes
 
 
 @pytest.mark.parametrize("answer", ["yes", "y", "haan", "han", "ji", "haan ji",
-                                    "YES", " Haan Ji ", "yes.", "ji!"])
+                                    "YES", " Haan Ji ", "yes.", "ji!", "Haan.",
+                                    "ہاں", "جی", "ہاں جی", "ہاں۔"])
 def test_accepts_explicit_yes(answer):
     assert is_yes(answer)
 

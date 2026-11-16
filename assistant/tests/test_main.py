@@ -86,21 +86,21 @@ def last_log(path):
 
 def test_safe_skill_runs_without_confirmation(config, tmp_path):
     brain, reg, io, logger, path = setup(config, tmp_path, Decision(skill="safe"))
-    assert handle("do it", brain, reg, io, logger) == "Safe done."
+    assert handle("do it", brain, reg, io, logger).reply == "Safe done."
     assert io.asked == []
     assert last_log(path)["confirmed"] is None and last_log(path)["skill"] == "safe"
 
 
 def test_confirm_skill_runs_on_haan(config, tmp_path):
     brain, reg, io, logger, path = setup(config, tmp_path, Decision(skill="risky", params={"to": "Ali"}), ["haan"])
-    assert handle("x", brain, reg, io, logger) == "Done for Ali."
+    assert handle("x", brain, reg, io, logger).reply == "Done for Ali."
     assert io.asked == ["Do the risky thing to Ali? (yes/no)"]
     assert RiskySkill.ran and last_log(path)["confirmed"] is True
 
 
 def test_confirm_skill_cancels_on_anything_else(config, tmp_path):
     brain, reg, io, logger, path = setup(config, tmp_path, Decision(skill="risky", params={"to": "Ali"}), ["ok"])
-    assert handle("x", brain, reg, io, logger) == "Okay, cancelled."
+    assert handle("x", brain, reg, io, logger).reply == "Okay, cancelled."
     assert not RiskySkill.ran
     log = last_log(path)
     assert log["confirmed"] is False and log["ok"] is False
@@ -108,24 +108,24 @@ def test_confirm_skill_cancels_on_anything_else(config, tmp_path):
 
 def test_missing_required_param_asks(config, tmp_path):
     brain, reg, io, logger, _ = setup(config, tmp_path, Decision(skill="risky", params={}))
-    reply = handle("x", brain, reg, io, logger)
+    reply = handle("x", brain, reg, io, logger).reply
     assert "to" in reply and not RiskySkill.ran and io.asked == []
 
 
 def test_plain_reply_is_shown_and_logged(config, tmp_path):
     brain, reg, io, logger, path = setup(config, tmp_path, Decision(reply="Kaunsi app?"))
-    assert handle("kholo", brain, reg, io, logger) == "Kaunsi app?"
+    assert handle("kholo", brain, reg, io, logger).reply == "Kaunsi app?"
     assert io.said == ["Kaunsi app?"] and last_log(path)["skill"] is None
 
 
 def test_check_question_stops_before_read_back(config, tmp_path):
     brain, reg, io, logger, path = setup(config, tmp_path, Decision(skill="asking"))
-    assert handle("x", brain, reg, io, logger) == "Which one do you mean?"
+    assert handle("x", brain, reg, io, logger).reply == "Which one do you mean?"
     assert io.asked == [] and not AskingSkill.ran
     assert last_log(path)["ok"] is False
 
 
 def test_broken_skill_does_not_crash(config, tmp_path):
     brain, reg, io, logger, path = setup(config, tmp_path, Decision(skill="broken"))
-    reply = handle("x", brain, reg, io, logger)
+    reply = handle("x", brain, reg, io, logger).reply
     assert "went wrong" in reply and last_log(path)["ok"] is False

@@ -3,8 +3,8 @@
 A desktop assistant for Windows by VisionX Intelligence. You type (and later speak)
 commands in English, Urdu or Roman Urdu, and VisionX opens apps, websites and more.
 
-**Status:** Phase 2 (typed commands: open apps, open websites / Google search, tell the time,
-WhatsApp messages and chats).
+**Status:** Phase 3 (voice with push-to-talk, or typed: open apps, open websites / Google
+search, tell the time, WhatsApp messages and chats).
 
 ## Setup (once)
 
@@ -40,14 +40,29 @@ notepad assistant\config\contacts.yaml
 Replace the two fake entries with real ones. Numbers can be written as `0300 1234567`,
 `03001234567` or `+92 300 1234567`.
 
+For voice mode, Windows also needs the Microsoft Visual C++ Redistributable (free):
+`winget install Microsoft.VCRedist.2015+.x64`.
+
 ## Run
 
 ```powershell
 cd "C:\Users\pc\Desktop\Hey VisionX"
-.\.venv\Scripts\python.exe -m assistant.main
+.\.venv\Scripts\python.exe -m assistant.main          # voice mode
+.\.venv\Scripts\python.exe -m assistant.main --text   # typed mode
 ```
 
-Type a command and press Enter. Type `exit` (or `bye`, `band karo`) to quit.
+**Voice mode:** hold **Ctrl+Alt+Space**, speak, release. You hear a beep when recording
+starts and stops. VisionX prints what it heard, does it, and speaks a short reply. When it
+asks something ("Which Ali?"), just answer; you don't need to repeat the command. For a
+WhatsApp read-back, say **yes** or **ji**. Say `exit` or press Ctrl+C to quit.
+
+**Typed mode:** type a command and press Enter. Type `exit` (or `bye`, `band karo`) to quit.
+
+While testing, each command shows a timing line (recording, speech-to-text, brain, skill).
+Turn it off with `show_timings: false` in `settings.yaml`.
+
+To check how speech-to-text writes your voice (Latin vs Urdu script), record a few clips and
+compare settings: `.\.venv\Scripts\python.exe -m assistant.tools.stt_script_test --local`.
 
 Example commands:
 
@@ -79,7 +94,7 @@ All in `assistant/config/`:
 
 | File | What it holds |
 |---|---|
-| `settings.yaml` | Assistant name, LLM provider/model/effort, hotkey |
+| `settings.yaml` | Assistant name, LLM provider/model, hotkey, speech-to-text, voice |
 | `apps.yaml` | Apps VisionX may open: name, aliases, `.exe` path or URI |
 | `websites.yaml` | Sites opened directly; everything else becomes a Google search |
 | `contacts.yaml` | Your contacts: name, aliases, phone (git-ignored; see `contacts.example.yaml`) |
@@ -99,5 +114,6 @@ plus a test in `assistant/tests/`. It's picked up automatically; no core changes
 
 ## Cost
 
-Only the brain is paid: Claude Haiku via the Anthropic API (roughly $1/month for personal
-use). The system prompt and skill list are prompt-cached. Everything else is free or local.
+Right now everything is free: the brain and speech-to-text run on Groq's free tier, with
+offline speech-to-text (faster-whisper) as a fallback and Windows voices for speech. Switching
+the brain to Claude Haiku (`provider: anthropic`) costs roughly $1/month for personal use.

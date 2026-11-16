@@ -3,3 +3,13 @@ python-dotenv==1.2.4
 PyYAML==6.0.3
 pytest==9.2.0
 groq==1.7.0
+
+# Phase 3: voice
+sounddevice==0.5.6
+numpy==2.5.5
+pynput==1.8.2
+pyttsx3==2.99
+faster-whisper==1.2.1
+# Pinned: Smart App Control blocks ctranslate2 4.9.0's DLL on this PC; 4.8.5 is allowed.
+ctranslate2==4.8.5
+# Needs the Microsoft Visual C++ Redistributable 2015+ (x64), installed via winget.

@@ -1,16 +1,24 @@
-"""VisionX entry point. Run from the project folder:  python -m assistant.main"""
+"""VisionX entry point. Run from the project folder:
+
+    python -m assistant.main          # voice mode (push-to-talk)
+    python -m assistant.main --text   # typed mode
+"""
 from __future__ import annotations
 
+import argparse
 import sys
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from assistant.core.brain import Brain
-from assistant.core.config import LOG_FILE, load_config
+from assistant.core.config import LOG_FILE, Config, load_config
 from assistant.core.confirm import confirm
 from assistant.core.logger import ActionLogger
+from assistant.core.matching import normalize
 from assistant.core.providers import get_provider
 from assistant.core.providers.base import BrainError
 from assistant.core.registry import Registry, discover
+from assistant.core.timing import Timings
 from assistant.interfaces.text_io import TextIO
 
 EXIT_WORDS = {"exit", "quit", "bye", "stop", "band karo", "khuda hafiz", "allah hafiz"}
@@ -21,82 +29,183 @@ class IO(Protocol):
     def ask(self, question: str) -> str: ...
 
 
+@dataclass
+class Outcome:
+    reply: str
+    needs_answer: bool = False   # VisionX asked a question; the next input is the answer
+
+
 def missing_params(schema: dict[str, Any], params: dict[str, Any]) -> list[str]:
     return [p for p in schema.get("required", []) if not str(params.get(p, "")).strip()]
 
 
-def handle(command: str, brain: Brain, registry: Registry, io: IO, logger: ActionLogger) -> str:
-    """Process one command end to end and return the reply that was shown."""
-    decision = brain.decide(command)
+def with_follow_up(original: str, question: str, answer: str) -> str:
+    """The text sent to the brain when the user answers VisionX's question."""
+    return f'{original}\n(You asked: "{question}" The user answered: "{answer}")'
+
+
+def handle(command: str, brain: Brain, registry: Registry, io: IO, logger: ActionLogger,
+           timings: Timings | None = None, **log_extra: Any) -> Outcome:
+    """Process one command end to end."""
+    timings = timings or Timings()
+
+    def log(skill: str | None, params: dict | None, confirmed: bool | None, ok: bool, reply: str) -> None:
+        logger.log(command=command, skill=skill, params=params, confirmed=confirmed, ok=ok, reply=reply,
+                   timings=timings.as_dict(), **log_extra)
+
+    with timings.step("brain"):
+        decision = brain.decide(command)
     skill = registry.get(decision.skill) if decision.skill else None
 
     if skill is None:
         reply = decision.reply or "Sorry, I didn't catch that."
         io.say(reply)
-        logger.log(command=command, skill=None, params=None, confirmed=None, ok=True, reply=reply)
-        return reply
+        log(None, None, None, True, reply)
+        return Outcome(reply, needs_answer=reply.rstrip().endswith("?"))
 
     params = decision.params
     missing = missing_params(skill.parameters, params)
     if missing:
-        reply = f"I need the {', '.join(missing)} to do that."
+        reply = f"What {' and '.join(missing)} should I use?"
         io.say(reply)
-        logger.log(command=command, skill=skill.name, params=params, confirmed=None, ok=False, reply=reply)
-        return reply
+        log(skill.name, params, None, False, reply)
+        return Outcome(reply, needs_answer=True)
 
-    try:
-        question = skill.check(**params)
-    except Exception:
-        question = f"Something went wrong while preparing {skill.name}."
+    with timings.step("check"):
+        try:
+            question = skill.check(**params)
+        except Exception:
+            question = f"Something went wrong while preparing {skill.name}."
     if question:
         io.say(question)
-        logger.log(command=command, skill=skill.name, params=params, confirmed=None, ok=False, reply=question)
-        return question
+        log(skill.name, params, None, False, question)
+        return Outcome(question, needs_answer=question.rstrip().endswith("?"))
 
     confirmed: bool | None = None
     if skill.risk == "confirm":
-        confirmed = confirm(skill.confirm_prompt(**params), io.ask)
+        confirmed = confirm(skill.confirm_prompt(**params), io.ask,   # waiting time not counted
+                            extra_yes=getattr(io, "extra_yes", frozenset()),
+                            hint=getattr(io, "confirm_hint", "(yes/no)"))
         if not confirmed:
             reply = "Okay, cancelled."
             io.say(reply)
-            logger.log(command=command, skill=skill.name, params=params, confirmed=False, ok=False, reply=reply)
-            return reply
+            log(skill.name, params, False, False, reply)
+            return Outcome(reply)
 
-    try:
-        result = skill.run(**params)
-    except Exception:  # a broken skill must never crash the assistant
+    with timings.step("skill"):
+        try:
+            result = skill.run(**params)
+        except Exception:  # a broken skill must never crash the assistant
+            result = None
+    if result is None:
         reply = f"Something went wrong while running {skill.name}."
         io.say(reply)
-        logger.log(command=command, skill=skill.name, params=params, confirmed=confirmed, ok=False, reply=reply)
-        return reply
+        log(skill.name, params, confirmed, False, reply)
+        return Outcome(reply)
 
     io.say(result.reply)
-    logger.log(command=command, skill=skill.name, params=params, confirmed=confirmed,
-               ok=result.ok, reply=result.reply)
-    return result.reply
+    log(skill.name, params, confirmed, result.ok, result.reply)
+    return Outcome(result.reply)
 
 
-def main() -> int:
+class Session:
+    """The main loop: one optional follow-up answer per question, then it is cleared."""
+
+    def __init__(self, io: Any, brain: Brain, registry: Registry, logger: ActionLogger,
+                 show_timings: bool = True) -> None:
+        self.io, self.brain, self.registry, self.logger = io, brain, registry, logger
+        self.show_timings = show_timings
+        self.pending: tuple[str, str] | None = None   # (original command, VisionX's question)
+
+    def step(self, text: str, timings: Timings | None = None) -> Outcome:
+        timings = timings or Timings()
+        if self.pending:
+            original, question = self.pending
+            self.pending = None
+            outcome = handle(with_follow_up(original, question, text), self.brain, self.registry,
+                             self.io, self.logger, timings, follow_up=True)
+            # One follow-up only: a second question is not chained.
+        else:
+            outcome = handle(text, self.brain, self.registry, self.io, self.logger, timings)
+            if outcome.needs_answer:
+                self.pending = (text, outcome.reply)
+        if self.show_timings and hasattr(self.io, "note"):
+            self.io.note(timings.summary())
+        return outcome
+
+    def run(self) -> int:
+        while True:
+            timings = Timings()
+            try:
+                text = self.io.listen(timings)
+            except KeyboardInterrupt:
+                text = None
+            if text is None or normalize(text) in EXIT_WORDS:
+                self.io.say("Bye!")
+                return 0
+            if text:
+                self.step(text, timings)
+
+
+def build_voice_io(config: Config) -> Any:
+    from assistant.interfaces.audio import Recorder
+    from assistant.interfaces.hotkey import PushToTalk
+    from assistant.interfaces.stt import get_transcriber
+    from assistant.interfaces.tts import Speaker
+    from assistant.interfaces.voice_io import VoiceIO
+
+    s = config.settings
+    hotkey = s.get("hotkey", "ctrl+alt+space")
+    audio = s.get("audio", {})
+    tts = s.get("tts", {})
+    transcriber, notices = get_transcriber(config)
+    if transcriber.primary is None:
+        raise RuntimeError("No speech-to-text provider is available, so please use --text mode.")
+    io = VoiceIO(PushToTalk(hotkey), Recorder(), transcriber,
+                 Speaker(voice=tts.get("voice"), rate=tts.get("rate")),
+                 assistant_name=config.assistant_name, hotkey_label=hotkey,
+                 min_seconds=float(audio.get("min_seconds", 0.3)), beeps=bool(audio.get("beeps", True)))
+    for n in notices:
+        io.note(f"{config.assistant_name}: {n}")
+    io.ptt.start()
+    if s.get("stt", {}).get("local", {}).get("preload", True):
+        transcriber.warm_up()
+    return io
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m assistant.main", description="VisionX assistant")
+    parser.add_argument("--text", action="store_true", help="typed mode instead of voice")
+    args = parser.parse_args(argv)
+
     config = load_config()
-    io = TextIO(config.assistant_name)
+    text_io = TextIO(config.assistant_name)
     try:
         provider = get_provider(config)
     except BrainError as e:
-        io.say(str(e))
+        text_io.say(str(e))
         return 1
+
+    if args.text:
+        io: Any = text_io
+        hint = "Type a command, or 'exit' to quit."
+    else:
+        try:
+            io = build_voice_io(config)
+        except Exception as e:
+            text_io.say(str(e) if isinstance(e, RuntimeError) else
+                        "I couldn't start voice mode, so please run with --text.")
+            return 1
+        hint = f"Hold {config.settings.get('hotkey', 'ctrl+alt+space')} and speak; say 'exit' or press Ctrl+C to quit."
 
     registry = discover(config)
     brain = Brain(provider, registry, config.assistant_name, config.company)
-    logger = ActionLogger(LOG_FILE)
-
-    io.say(f"Hi, I'm {config.assistant_name}. Type a command, or 'exit' to quit.")
-    while True:
-        command = io.listen()
-        if command is None or command.lower() in EXIT_WORDS:
-            io.say("Bye!")
-            return 0
-        if command:
-            handle(command, brain, registry, io, logger)
+    session = Session(io, brain, registry, ActionLogger(LOG_FILE),
+                      show_timings=bool(config.settings.get("show_timings", True)))
+    io.say(f"Hi, I'm {config.assistant_name}.")
+    if hasattr(io, "note"):
+        io.note(hint)
+    return session.run()
 
 
 if __name__ == "__main__":

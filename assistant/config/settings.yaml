@@ -26,5 +26,34 @@ brain:
     max_tokens: 1024
     api_key_env: GROQ_API_KEY
 
-voice: {}                       # Phase 3
-hotkey: ctrl+alt+space          # Phase 3 push-to-talk
+hotkey: ctrl+alt+space          # hold to talk, release to stop
+show_timings: true              # print step timings under each command (set false once tuned)
+
+audio:
+  min_seconds: 0.3              # recordings shorter than this are ignored
+  beeps: true                   # short beep on start and stop
+
+stt:
+  provider: groq                # one file per provider in assistant/interfaces/stt/
+  fallback: local               # used when the provider fails or is rate limited
+  # Language hint for Whisper: null (auto-detect), en, ur. Chosen from the 2026-11-17
+  # stt_script_test (8 real clips): en+prompt and auto+prompt both gave Latin script 8/8;
+  # en+prompt chosen (fixed language, no Hindi switch). Without the prompt: auto gave
+  # Devanagari 2/8 and en translated Roman Urdu into English.
+  language: en
+  # Style hint: nudges Whisper to write Roman Urdu in Latin letters, as typed. Max ~224 tokens.
+  prompt: "Roman Urdu aur English commands: chrome kholo, Ali ko message bhejo ke main late hoon, time kya hua hai, haan, ji."
+  retry_language: ur            # if Devanagari comes back, re-transcribe once in Urdu script
+  groq:
+    model: whisper-large-v3-turbo
+    api_key_env: GROQ_API_KEY
+  local:
+    model: small                # faster-whisper size; see CLAUDE.md for the benchmark
+    compute_type: int8
+    cpu_threads: 8              # fastest on the i5-1235U in the benchmark
+    preload: true               # load in the background at start so fallback is ready
+
+tts:
+  engine: pyttsx3               # Windows built-in voices (local, free)
+  voice: Zira                   # part of a voice name: Zira or David
+  rate: 185                     # words per minute
