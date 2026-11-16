@@ -119,6 +119,12 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
 - [ ] 6. Product prep (later)
 
 ## Environment notes
+- Brain currently runs on **Groq** (`provider: groq`, model `openai/gpt-oss-120b`, reasoning_effort low)
+  because there is no Anthropic key yet. Switch back to Haiku by setting `provider: anthropic`
+  in settings.yaml; anthropic.py and its settings are unchanged. Groq key: `GROQ_API_KEY` in `.env`.
+  Model chosen by a 10-command English/Roman Urdu/Urdu test (gpt-oss-20b reworded a message;
+  llama-3.x models returned 404 for this key). Free tier limits for gpt-oss-120b per the Groq
+  docs page (unlabeled plan): 30 RPM, 1K RPD, 8K TPM, 200K TPD.
 - Python 3.14 in `.venv`. If faster-whisper / openWakeWord lack 3.14 wheels in Phase 3/5, add a 3.12 venv.
 - `claude` CLI is not on PATH yet (needed in Phase 4): `npm i -g @anthropic-ai/claude-code`.
 - WhatsApp Desktop (Store, 5319275A.WhatsAppDesktop) is installed; the `whatsapp:` protocol is registered.

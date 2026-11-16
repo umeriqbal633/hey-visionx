@@ -18,8 +18,13 @@ copy .env.example .env
 notepad .env
 ```
 
-In `.env`, paste your Anthropic API key after `VISIONX_ANTHROPIC_KEY=` and save. Get a key
-at https://console.anthropic.com.
+In `.env` (in the project folder, next to `.env.example`, never in `.env.example` itself),
+add your keys and save:
+
+- `GROQ_API_KEY=` (free, https://console.groq.com): the brain currently runs on Groq
+  (`provider: groq` in `assistant/config/settings.yaml`).
+- `VISIONX_ANTHROPIC_KEY=` (https://console.anthropic.com): to use Claude Haiku instead,
+  add this key and change that line to `provider: anthropic`.
 
 > Never rename it to `ANTHROPIC_API_KEY`. Claude Code reads that name and would bill the
 > API key instead of your Claude Pro plan.

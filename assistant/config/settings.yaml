@@ -4,11 +4,27 @@ assistant:
   wake_word: Hey VisionX        # used from Phase 5
 
 brain:
-  provider: anthropic           # one file per provider in assistant/core/providers/
+  # TEMPORARY: running on Groq (free) until there is an Anthropic key.
+  # To switch back to Claude Haiku, change this one line to:  provider: anthropic
+  # (and add VISIONX_ANTHROPIC_KEY to .env). The anthropic settings below are unchanged.
+  provider: groq                # one file per provider in assistant/core/providers/
+
+  # --- anthropic provider ---
   model: claude-haiku-5-5
   effort: low                   # low = fastest/cheapest routing; raise to medium if it picks wrong skills
   max_tokens: 2048
   api_key_env: VISIONX_ANTHROPIC_KEY   # name of the key in .env (never ANTHROPIC_API_KEY)
+
+  # --- groq provider ---
+  groq:
+    # Chosen 2026-11-17 by a 10-command English / Roman Urdu / Urdu test:
+    # gpt-oss-120b 10/10 (median 0.7s); gpt-oss-20b 9/10 (reworded a Roman Urdu message);
+    # llama-3.3-70b-versatile and llama-3.1-8b-instant returned 404 for this key.
+    model: openai/gpt-oss-120b
+    reasoning_effort: low
+    temperature: 0.2
+    max_tokens: 1024
+    api_key_env: GROQ_API_KEY
 
 voice: {}                       # Phase 3
 hotkey: ctrl+alt+space          # Phase 3 push-to-talk

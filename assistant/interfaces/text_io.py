@@ -2,6 +2,11 @@
 from __future__ import annotations
 
 
+def clean(text: str) -> str:
+    """Strip whitespace and invisible byte-order marks (PowerShell adds one to piped input)."""
+    return text.replace("﻿", "").strip()
+
+
 class TextIO:
     def __init__(self, assistant_name: str = "VisionX") -> None:
         self.name = assistant_name
@@ -9,7 +14,7 @@ class TextIO:
     def listen(self) -> str | None:
         """Next command, or None when the user is done (Ctrl+Z/Ctrl+D or Ctrl+C)."""
         try:
-            return input("You: ").strip()
+            return clean(input("You: "))
         except (EOFError, KeyboardInterrupt):
             print()
             return None
@@ -19,4 +24,4 @@ class TextIO:
 
     def ask(self, question: str) -> str:
         self.say(question)
-        return input("You: ").strip()
+        return clean(input("You: "))
