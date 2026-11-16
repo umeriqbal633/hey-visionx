@@ -1,0 +1,12 @@
+# Secrets
+.env
+
+# Runtime
+assistant/logs/*
+!assistant/logs/.gitkeep
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
