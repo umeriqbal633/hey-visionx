@@ -1,0 +1,26 @@
+# Websites VisionX may open directly. Anything else becomes a Google search
+# (https://www.google.com/search?q=...); no other URL is ever opened.
+
+youtube:
+  aliases: [you tube, yt]
+  url: https://www.youtube.com
+
+gmail:
+  aliases: [g mail, email, mail]
+  url: https://mail.google.com
+
+github:
+  aliases: [git hub]
+  url: https://github.com
+
+google:
+  aliases: []
+  url: https://www.google.com
+
+chatgpt:
+  aliases: [chat gpt]
+  url: https://chatgpt.com
+
+claude:
+  aliases: [claude ai]
+  url: https://claude.ai

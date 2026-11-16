@@ -1,0 +1,30 @@
+# Apps VisionX may open. Key = spoken name, aliases = other ways you say it,
+# target = .exe path or a URI (for Microsoft Store apps).
+# Anything not listed here will NOT be opened; VisionX will ask you to add it.
+
+chrome:
+  aliases: [google chrome, browser, kroom]
+  target: C:\Program Files\Google\Chrome\Application\chrome.exe
+
+vscode:
+  aliases: [vs code, visual studio code, code]
+  target: C:\Users\pc\AppData\Local\Programs\Microsoft VS Code\Code.exe
+
+notepad:
+  aliases: [note pad]
+  target: C:\Windows\System32\notepad.exe
+
+file explorer:
+  aliases: [explorer, files, my computer, this pc, folders]
+  target: C:\Windows\explorer.exe
+
+calculator:
+  aliases: [calc, calculater]
+  target: "calculator:"
+
+# WhatsApp Desktop (Microsoft Store) registers the whatsapp: URI.
+# NOTE: not installed on this PC yet (checked 2026-11-17). Install it from the
+# Microsoft Store and this entry starts working with no other change.
+whatsapp:
+  aliases: [whats app, watsapp, whatsapp desktop]
+  target: "whatsapp:"

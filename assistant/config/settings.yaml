@@ -1,0 +1,14 @@
+assistant:
+  name: VisionX
+  company: VisionX Intelligence
+  wake_word: Hey VisionX        # used from Phase 5
+
+brain:
+  provider: anthropic           # one file per provider in assistant/core/providers/
+  model: claude-haiku-5-5
+  effort: low                   # low = fastest/cheapest routing; raise to medium if it picks wrong skills
+  max_tokens: 2048
+  api_key_env: VISIONX_ANTHROPIC_KEY   # name of the key in .env (never ANTHROPIC_API_KEY)
+
+voice: {}                       # Phase 3
+hotkey: ctrl+alt+space          # Phase 3 push-to-talk
