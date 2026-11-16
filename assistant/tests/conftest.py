@@ -1,6 +1,17 @@
 import pytest
 
 from assistant.core.config import Config
+from assistant.core.contacts import parse_contacts
+
+# Fake people. "ali" is deliberately an alias of two contacts (the duplicate case).
+TEST_CONTACTS = {
+    "contacts": [
+        {"name": "Ali Khan", "aliases": ["ali", "ali bhai"], "phone": "0300 1234567"},
+        {"name": "Ali Raza", "aliases": ["ali"], "phone": "+92 333 7654321"},
+        {"name": "Sara Ahmed", "aliases": ["sara", "sara baji"], "phone": "03211112222"},
+        {"name": "Bad Number", "aliases": ["bad"], "phone": "12345"},
+    ]
+}
 
 
 @pytest.fixture
@@ -21,4 +32,5 @@ def config() -> Config:
             "github": {"aliases": [], "url": "https://github.com"},
         },
         secrets={"VISIONX_ANTHROPIC_KEY": "test-key"},
+        contacts=parse_contacts(TEST_CONTACTS),
     )

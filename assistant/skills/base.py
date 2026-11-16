@@ -23,6 +23,11 @@ class Skill(ABC):
     def __init__(self, config: Config) -> None:
         self.config = config
 
+    def check(self, **params: Any) -> str | None:
+        """Runs before any read-back. Return a one-sentence question (e.g. 'Which Ali do you
+        mean?') to stop and ask the user, or None to continue. Never guess."""
+        return None
+
     def confirm_prompt(self, **params: Any) -> str:
         """Sentence read back before a risky action. Override for a clearer read-back."""
         return f"Should I run {self.name} with {params}?"

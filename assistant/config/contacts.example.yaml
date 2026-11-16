@@ -1,0 +1,15 @@
+# Copy this file to contacts.yaml and put your real contacts there.
+# contacts.yaml is git-ignored; this example (fake people, fake numbers) is committed.
+#
+# phone: write it however you like: 0300 1234567, 03001234567, +92 300 1234567.
+# VisionX converts it to +923001234567. Other countries: use +<country code>.
+# Two contacts may share an alias (e.g. both "ali"); VisionX will ask which one.
+
+contacts:
+  - name: Ali Khan
+    aliases: [ali, ali bhai]
+    phone: 0300 1234567
+
+  - name: Sara Ahmed
+    aliases: [sara, sara baji]
+    phone: +92 321 7654321

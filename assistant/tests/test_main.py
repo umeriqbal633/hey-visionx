@@ -42,6 +42,20 @@ class RiskySkill(Skill):
         return Result(True, f"Done for {to}.")
 
 
+class AskingSkill(Skill):
+    name = "asking"
+    description = "Needs clarification first."
+    risk = "confirm"
+    ran = False
+
+    def check(self, **_):
+        return "Which one do you mean?"
+
+    def run(self, **_):
+        AskingSkill.ran = True
+        return Result(True, "ran")
+
+
 class SafeSkill(Skill):
     name = "safe"
     description = "A safe thing."
@@ -60,7 +74,8 @@ class BrokenSkill(Skill):
 
 def setup(config, tmp_path, decision, answers=()):
     RiskySkill.ran = False
-    registry = Registry([RiskySkill(config), SafeSkill(config), BrokenSkill(config)])
+    AskingSkill.ran = False
+    registry = Registry([RiskySkill(config), SafeSkill(config), BrokenSkill(config), AskingSkill(config)])
     log_path = tmp_path / "actions.jsonl"
     return FakeBrain(decision), registry, FakeIO(answers), ActionLogger(log_path), log_path
 
@@ -101,6 +116,13 @@ def test_plain_reply_is_shown_and_logged(config, tmp_path):
     brain, reg, io, logger, path = setup(config, tmp_path, Decision(reply="Kaunsi app?"))
     assert handle("kholo", brain, reg, io, logger) == "Kaunsi app?"
     assert io.said == ["Kaunsi app?"] and last_log(path)["skill"] is None
+
+
+def test_check_question_stops_before_read_back(config, tmp_path):
+    brain, reg, io, logger, path = setup(config, tmp_path, Decision(skill="asking"))
+    assert handle("x", brain, reg, io, logger) == "Which one do you mean?"
+    assert io.asked == [] and not AskingSkill.ran
+    assert last_log(path)["ok"] is False
 
 
 def test_broken_skill_does_not_crash(config, tmp_path):

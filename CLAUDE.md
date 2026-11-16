@@ -59,9 +59,12 @@ assistant/
     logger.py             # appends every action to logs/actions.jsonl
     config.py             # loads YAML + .env (dotenv_values: never copied into os.environ)
     matching.py           # name/alias lookup against the YAML allowlists
+    phone.py              # number normalization to E.164 (PK formats) + display format
+    contacts.py           # contacts.yaml loading (BaseLoader: numbers stay strings) + matching
   skills/
     base.py               # Skill base class
     open_app.py           # one file per skill
+    _whatsapp.py          # shared helpers; a leading "_" keeps a module out of skill discovery
   interfaces/             # NOT "io/": that would shadow Python's built-in io module
     text_io.py            # Phase 1: typed input
     stt.py, tts.py        # Phase 3: speech in/out
@@ -70,7 +73,7 @@ assistant/
     settings.yaml         # assistant name, provider, model, voice, hotkey
     apps.yaml             # spoken name + aliases -> executable path or URI
     websites.yaml         # name + aliases -> URL; anything else = google.com/search?q= only
-    contacts.yaml         # name + aliases -> phone number (E.164, e.g. +923001234567)
+    contacts.yaml         # list of name + aliases + phone (git-ignored; contacts.example.yaml committed)
     projects.yaml         # name + aliases -> folder path
   logs/
   tests/
@@ -82,6 +85,9 @@ Every skill defines:
 - `parameters` as a JSON schema
 - `risk`: `"safe"` or `"confirm"`
 - `run(**params) -> Result(ok: bool, reply: str)` where `reply` is one short sentence to show or speak
+- optional `check(**params) -> str | None`: runs before the read-back; return a question
+  (unknown or ambiguous contact, etc.) to stop and ask instead of guessing
+- optional `confirm_prompt(**params) -> str`: the read-back sentence for `risk: "confirm"`
 
 Adding a skill means adding one file in `skills/`. No changes to core code.
 
@@ -106,7 +112,7 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
 ## Phases
 - [x] 0. Setup: tools installed, folder, git, this file
 - [x] 1. Text brain + skill system + open_app / open_website / get_time
-- [ ] 2. WhatsApp message skill + contacts
+- [x] 2. WhatsApp message skill + contacts
 - [ ] 3. Voice: push-to-talk hotkey, speech-to-text, text-to-speech
 - [ ] 4. Call skill, coding skill (Claude Code), reminders
 - [ ] 5. Wake word, system tray app, start on boot
@@ -115,7 +121,8 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
 ## Environment notes
 - Python 3.14 in `.venv`. If faster-whisper / openWakeWord lack 3.14 wheels in Phase 3/5, add a 3.12 venv.
 - `claude` CLI is not on PATH yet (needed in Phase 4): `npm i -g @anthropic-ai/claude-code`.
-- WhatsApp Desktop is not installed yet (needed in Phase 2); `apps.yaml` already points at `whatsapp:`.
+- WhatsApp Desktop (Store, 5319275A.WhatsAppDesktop) is installed; the `whatsapp:` protocol is registered.
+- Brain is single-turn: when a skill asks a question ("Which Ali?"), the user retypes the full command.
 - Confirmation accepts only: yes / y / haan / han / ji / haan ji. Anything else cancels.
 - Git: push to `origin` (github.com/umeriqbal633/hey-visionx) once per finished phase.
 
@@ -125,6 +132,13 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
 - **WhatsApp:** open `whatsapp://send?phone=<number without +>&text=<url-encoded text>` so
   WhatsApp Desktop opens with the message typed. Confirm before sending. Do not use
   unofficial WhatsApp libraries (whatsapp-web.js, Baileys, etc.).
+  - `send_whatsapp` (confirm): read-back is exactly `Send '<message>' to <Name> (+92 300 1234567)?`.
+    The user presses Enter in WhatsApp; no auto-send or keyboard automation (Phase 2 decision).
+  - `open_whatsapp_chat` (safe): same URL without `text`.
+  - Message text is passed through verbatim (no translation); encode with `quote(safe="")`
+    so spaces are `%20`, never `+`.
+  - Contact lookup returns all matches: 0 → ask to add, 2+ → "Which Ali do you mean: …?". Never guess.
+  - The contact list is never sent to the LLM; only the name the user said.
 - **Calls:** open a `tel:+92...` URI. On Windows this goes to Phone Link with a paired phone.
 - **Coding:** run `claude -p "<task>" --permission-mode acceptEdits --allowedTools "<scoped list>" --output-format json`
   with the working directory set to the project path from `projects.yaml`, and reply with the

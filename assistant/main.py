@@ -44,6 +44,15 @@ def handle(command: str, brain: Brain, registry: Registry, io: IO, logger: Actio
         logger.log(command=command, skill=skill.name, params=params, confirmed=None, ok=False, reply=reply)
         return reply
 
+    try:
+        question = skill.check(**params)
+    except Exception:
+        question = f"Something went wrong while preparing {skill.name}."
+    if question:
+        io.say(question)
+        logger.log(command=command, skill=skill.name, params=params, confirmed=None, ok=False, reply=question)
+        return question
+
     confirmed: bool | None = None
     if skill.risk == "confirm":
         confirmed = confirm(skill.confirm_prompt(**params), io.ask)

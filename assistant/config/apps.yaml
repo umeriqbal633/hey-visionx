@@ -22,9 +22,8 @@ calculator:
   aliases: [calc, calculater]
   target: "calculator:"
 
-# WhatsApp Desktop (Microsoft Store) registers the whatsapp: URI.
-# NOTE: not installed on this PC yet (checked 2026-11-17). Install it from the
-# Microsoft Store and this entry starts working with no other change.
+# WhatsApp Desktop (Microsoft Store, 5319275A.WhatsAppDesktop) registers the whatsapp: URI.
+# Verified installed and registered on 2026-11-17.
 whatsapp:
   aliases: [whats app, watsapp, whatsapp desktop]
   target: "whatsapp:"
