@@ -53,21 +53,21 @@ class OpenWebsite(Skill):
             "and it will be searched on Google."
         )
 
-    def find_site(self, target: str):
-        return find_entry(self.config.websites, target) or find_entry(
-            self.config.websites, _strip_url_bits(target)
-        )
-
     def run(self, target: str = "", **_) -> Result:
         target = (target or "").strip()
         if not target:
             return Result(False, "Which website should I open?")
-        match = self.find_site(target)
-        if match:
-            key, entry = match
-            url = str(entry.get("url", "")).strip()
-            if url:
-                _open(url)
-                return Result(True, f"Opening {key}.")
-        _open(GOOGLE_SEARCH + quote_plus(target))
-        return Result(True, f"Searching Google for {target}.")
+        url, label, is_search = resolve_url(self.config.websites, target)
+        _open(url)
+        return Result(True, f"Searching Google for {label}." if is_search else f"Opening {label}.")
+
+
+def resolve_url(websites: dict, target: str) -> tuple[str, str, bool]:
+    """(url, label, is_search). Only an allowlisted URL or a Google search URL, never anything else."""
+    match = find_entry(websites, target) or find_entry(websites, _strip_url_bits(target))
+    if match:
+        key, entry = match
+        url = str((entry or {}).get("url", "")).strip()
+        if url:
+            return url, key, False
+    return GOOGLE_SEARCH + quote_plus(target), target, True

@@ -37,16 +37,24 @@ class GroqProvider(Provider):
         extra: dict[str, Any] = {}
         if self.reasoning_effort:  # only for reasoning models (e.g. openai/gpt-oss-*)
             extra["reasoning_effort"] = self.reasoning_effort
+        request = dict(
+            model=self.model,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": command}],
+            tools=self.to_groq_tools(tools),
+            tool_choice="auto",
+            temperature=self.temperature,
+            max_completion_tokens=self.max_tokens,
+            **extra,
+        )
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "system", "content": system}, {"role": "user", "content": command}],
-                tools=self.to_groq_tools(tools),
-                tool_choice="auto",
-                temperature=self.temperature,
-                max_completion_tokens=self.max_tokens,
-                **extra,
-            )
+            try:
+                response = self.client.chat.completions.create(**request)
+            except groq.BadRequestError as e:
+                # Groq rejects a malformed tool call from the model ("tool_use_failed");
+                # a second try usually succeeds. Other 400s are re-raised as they are.
+                if "tool_use_failed" not in str(getattr(e, "body", "")) + str(e):
+                    raise
+                response = self.client.chat.completions.create(**request)
         except groq.AuthenticationError as e:
             raise BrainError("My Groq key was rejected, so please check GROQ_API_KEY in .env.") from e
         except groq.PermissionDeniedError as e:

@@ -78,11 +78,13 @@ def test_empty_transcript_asks_again():
 
 def test_voice_confirmation_with_existing_confirm():
     # Real transcripts from the voice test: "ji" came back as "G", "haan" as "Haan." or "Huh."
-    for answer, expected in [("Haan.", True), ("Yes.", True), ("Ji", True), ("ہاں", True),
-                             ("G.", True), ("Jee", True), ("ہا.", True),
-                             ("Huh.", False), ("No.", False), ("Thank you.", False), ("G G", False)]:
-        io, _, _, _ = make([0.8], answer)
-        assert confirm("Send 'hi' to Ali?", io.ask, io.extra_yes, io.confirm_hint) is expected, answer
+    # Unclear answers get one retry ("Please say yes or no."); the second answer decides.
+    for answers, expected in [(["Haan."], True), (["Yes."], True), (["Ji"], True), (["ہاں"], True),
+                              (["G."], True), (["Jee"], True), (["ہا."], True), (["No."], False),
+                              (["Huh.", "Yes."], True), (["Gigi", "Ji"], True),
+                              (["Huh.", "Huh."], False), (["Thank you.", "No."], False)]:
+        io, _, _, _ = make([0.8] * len(answers), *answers)
+        assert confirm("Send 'hi' to Ali?", io.ask, io.extra_yes, io.confirm_hint) is expected, answers
 
 
 def test_voice_read_back_hint():

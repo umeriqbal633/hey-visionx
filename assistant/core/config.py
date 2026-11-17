@@ -15,6 +15,7 @@ import yaml
 from dotenv import dotenv_values
 
 from assistant.core.contacts import Contact, load_contacts
+from assistant.core.corrections import load_corrections
 
 PACKAGE_DIR = Path(__file__).resolve().parent.parent  # .../assistant
 PROJECT_DIR = PACKAGE_DIR.parent                      # repo root
@@ -38,6 +39,7 @@ class Config:
     websites: dict[str, Any] = field(default_factory=dict)
     secrets: dict[str, str] = field(default_factory=dict)
     contacts: list[Contact] | None = None   # None = contacts.yaml doesn't exist yet
+    corrections: dict[str, str] = field(default_factory=dict)
 
     @property
     def assistant_name(self) -> str:
@@ -65,4 +67,5 @@ def load_config(config_dir: Path = CONFIG_DIR, env_file: Path = ENV_FILE) -> Con
         websites=load_yaml(config_dir / "websites.yaml"),
         secrets=secrets,
         contacts=load_contacts(config_dir / "contacts.yaml"),
+        corrections=load_corrections(config_dir / "corrections.yaml"),
     )

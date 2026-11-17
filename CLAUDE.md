@@ -62,6 +62,8 @@ assistant/
     phone.py              # number normalization to E.164 (PK formats) + display format
     contacts.py           # contacts.yaml loading (BaseLoader: numbers stay strings) + matching
     script.py             # Devanagari / Urdu / Latin detection; speakable() for TTS
+    corrections.py        # corrections.yaml: misheard word -> intended word (voice only)
+    chrome_profiles.py    # reads Chrome's "Local State" (read-only) to match profiles by name/email
     timing.py             # per-step timings (rec, stt, brain, check, skill)
   skills/
     base.py               # Skill base class
@@ -83,6 +85,7 @@ assistant/
     apps.yaml             # spoken name + aliases -> executable path or URI
     websites.yaml         # name + aliases -> URL; anything else = google.com/search?q= only
     contacts.yaml         # list of name + aliases + phone (git-ignored; contacts.example.yaml committed)
+    corrections.yaml      # personal speech fixes (git-ignored; corrections.example.yaml committed)
     projects.yaml         # name + aliases -> folder path
   logs/
   tests/
@@ -94,8 +97,10 @@ Every skill defines:
 - `parameters` as a JSON schema
 - `risk`: `"safe"` or `"confirm"`
 - `run(**params) -> Result(ok: bool, reply: str)` where `reply` is one short sentence to show or speak
-- optional `check(**params) -> str | None`: runs before the read-back; return a question
-  (unknown or ambiguous contact, etc.) to stop and ask instead of guessing
+- optional `check(**params) -> str | Ask | None`: runs before the read-back; return a question
+  (unknown or ambiguous contact, etc.) to stop and ask instead of guessing. For a single
+  close match return `Ask("Did you mean X?", on_yes={...})`: if the user says yes, the same
+  skill runs with those params (no brain call); risky skills still do their read-back.
 - optional `confirm_prompt(**params) -> str`: the read-back sentence for `risk: "confirm"`
 
 Adding a skill means adding one file in `skills/`. No changes to core code.
@@ -123,7 +128,10 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
 - [x] 1. Text brain + skill system + open_app / open_website / get_time
 - [x] 2. WhatsApp message skill + contacts
 - [x] 3. Voice: push-to-talk hotkey, speech-to-text, text-to-speech
-- [ ] 4. Call skill, coding skill (Claude Code), reminders
+- [x] 3.1 Accuracy (better STT, fuzzy "Did you mean", corrections, yes/no retry),
+      Chrome profiles, WhatsApp auto-send
+- [ ] 4. Call skill, coding skill (Claude Code), reminders, daily/scheduled tasks
+      (proposed: Windows Task Scheduler; approve each schedule once at creation)
 - [ ] 5. Wake word, system tray app, start on boot
 - [ ] 6. Product prep (later)
 
@@ -148,7 +156,26 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
   the brain together with the original command, once; then it's cleared.
 - Confirmation accepts only: yes / y / haan / han / ji / haan ji (also in Urdu script:
   ہاں / جی / ہاں جی). **Voice mode only** also accepts how Whisper writes a spoken ji/haa:
-  G / Gee / Jee / ہا (user decision 2026-11-17). "Huh" and anything else cancels.
+  G / Gee / Jee / ہا (user decision 2026-11-17). A clear no (no/nahi/cancel/...) cancels at
+  once; anything else gets one "Please say yes or no." retry, then cancels.
+
+## Phase 3.1 decisions (2026-11-17, after a live voice session with ~50% misses)
+- Misses were mostly speech-to-text, not the brain (brain got 10/10 typed and 7/7 Whisper
+  transcripts). No fine-tuning; fixes target the "ears" and missing skills.
+- STT: Groq `whisper-large-v3` (not turbo) + prompt v2 with "VisionX" and app names; on the
+  8 saved clips this fixed Paim→Time, vijanx→VisionX, Huh→Haan, G→Jii, mein→main.
+- A leading "Hey VisionX" (fuzzy) is stripped from transcripts; corrections.yaml is applied after.
+- Fuzzy names are only ever **suggested** ("Did you mean Saad Attock?"); nothing acts on them
+  without a yes. The brain must not ask about names itself; skills check them.
+- Chrome profiles: matched locally on profile name, email username, or matching digits
+  ("633"). Questions show only the profile name and last 3 characters of the account
+  ("Muhammad (…633)"); full emails never go to the LLM. On this PC the …633 account is the
+  **Default ("Muhammad")** profile; "Umer" is a different (…634) account.
+- **WhatsApp auto-send is ON** (user decision 2026-11-17, reverses the Phase 2 "press Enter
+  yourself" rule): after the yes, VisionX presses Enter only if WhatsApp.Root.exe is the
+  foreground window, checked before and after a 2 s settle; otherwise it leaves the message
+  typed and says so. `whatsapp.auto_send: false` turns it off. Still no unofficial APIs.
+- Groq brain: optional tool params allow `null`; one retry on Groq's `tool_use_failed` 400.
 
 ## Voice (Phase 3) decisions
 - `python -m assistant.main` = voice (hold Ctrl+Alt+Space), `--text` = typed mode.
@@ -173,7 +200,8 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
   WhatsApp Desktop opens with the message typed. Confirm before sending. Do not use
   unofficial WhatsApp libraries (whatsapp-web.js, Baileys, etc.).
   - `send_whatsapp` (confirm): read-back is exactly `Send '<message>' to <Name> (+92 300 1234567)?`.
-    The user presses Enter in WhatsApp; no auto-send or keyboard automation (Phase 2 decision).
+    After the yes, auto-send presses Enter (see Phase 3.1 decisions); with auto_send off the
+    user presses Enter.
   - `open_whatsapp_chat` (safe): same URL without `text`.
   - Message text is passed through verbatim (no translation); encode with `quote(safe="")`
     so spaces are `%20`, never `+`.

@@ -10,9 +10,9 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from assistant.core.brain import Brain
+from assistant.core.brain import Brain, Decision
 from assistant.core.config import LOG_FILE, Config, load_config
-from assistant.core.confirm import confirm
+from assistant.core.confirm import confirm, is_yes
 from assistant.core.logger import ActionLogger
 from assistant.core.matching import normalize
 from assistant.core.providers import get_provider
@@ -20,6 +20,7 @@ from assistant.core.providers.base import BrainError
 from assistant.core.registry import Registry, discover
 from assistant.core.timing import Timings
 from assistant.interfaces.text_io import TextIO
+from assistant.skills.base import Ask
 
 EXIT_WORDS = {"exit", "quit", "bye", "stop", "band karo", "khuda hafiz", "allah hafiz"}
 
@@ -33,6 +34,7 @@ class IO(Protocol):
 class Outcome:
     reply: str
     needs_answer: bool = False   # VisionX asked a question; the next input is the answer
+    on_yes: Decision | None = None   # for "Did you mean X?": run this directly if the answer is yes
 
 
 def missing_params(schema: dict[str, Any], params: dict[str, Any]) -> list[str]:
@@ -41,20 +43,22 @@ def missing_params(schema: dict[str, Any], params: dict[str, Any]) -> list[str]:
 
 def with_follow_up(original: str, question: str, answer: str) -> str:
     """The text sent to the brain when the user answers VisionX's question."""
-    return f'{original}\n(You asked: "{question}" The user answered: "{answer}")'
+    return (f"{original}\n(You asked: \"{question}\" The user answered: \"{answer}\". "
+            f"Now carry out the original command using this answer.)")
 
 
 def handle(command: str, brain: Brain, registry: Registry, io: IO, logger: ActionLogger,
-           timings: Timings | None = None, **log_extra: Any) -> Outcome:
-    """Process one command end to end."""
+           timings: Timings | None = None, decision: Decision | None = None, **log_extra: Any) -> Outcome:
+    """Process one command end to end. Pass `decision` to skip the brain (a confirmed suggestion)."""
     timings = timings or Timings()
 
     def log(skill: str | None, params: dict | None, confirmed: bool | None, ok: bool, reply: str) -> None:
         logger.log(command=command, skill=skill, params=params, confirmed=confirmed, ok=ok, reply=reply,
                    timings=timings.as_dict(), **log_extra)
 
-    with timings.step("brain"):
-        decision = brain.decide(command)
+    if decision is None:
+        with timings.step("brain"):
+            decision = brain.decide(command)
     skill = registry.get(decision.skill) if decision.skill else None
 
     if skill is None:
@@ -76,10 +80,15 @@ def handle(command: str, brain: Brain, registry: Registry, io: IO, logger: Actio
             question = skill.check(**params)
         except Exception:
             question = f"Something went wrong while preparing {skill.name}."
+    on_yes = None
+    if isinstance(question, Ask):
+        if question.on_yes:
+            on_yes = Decision(skill=skill.name, params={**params, **question.on_yes})
+        question = question.text
     if question:
         io.say(question)
         log(skill.name, params, None, False, question)
-        return Outcome(question, needs_answer=question.rstrip().endswith("?"))
+        return Outcome(question, needs_answer=question.rstrip().endswith("?"), on_yes=on_yes)
 
     confirmed: bool | None = None
     if skill.risk == "confirm":
@@ -115,20 +124,26 @@ class Session:
                  show_timings: bool = True) -> None:
         self.io, self.brain, self.registry, self.logger = io, brain, registry, logger
         self.show_timings = show_timings
-        self.pending: tuple[str, str] | None = None   # (original command, VisionX's question)
+        # (original command, VisionX's question, what to run on a yes)
+        self.pending: tuple[str, str, Decision | None] | None = None
 
     def step(self, text: str, timings: Timings | None = None) -> Outcome:
         timings = timings or Timings()
         if self.pending:
-            original, question = self.pending
+            original, question, on_yes = self.pending
             self.pending = None
-            outcome = handle(with_follow_up(original, question, text), self.brain, self.registry,
-                             self.io, self.logger, timings, follow_up=True)
+            said_yes = is_yes(text, getattr(self.io, "extra_yes", frozenset()))
+            if said_yes:
+                text = "yes"                  # e.g. a spoken "ji" transcribed as "G."
+            command = with_follow_up(original, question, text)
+            # "Did you mean X?" + yes: run the suggestion directly; otherwise ask the brain.
+            outcome = handle(command, self.brain, self.registry, self.io, self.logger, timings,
+                             decision=on_yes if said_yes else None, follow_up=True)
             # One follow-up only: a second question is not chained.
         else:
             outcome = handle(text, self.brain, self.registry, self.io, self.logger, timings)
             if outcome.needs_answer:
-                self.pending = (text, outcome.reply)
+                self.pending = (text, outcome.reply, outcome.on_yes)
         if self.show_timings and hasattr(self.io, "note"):
             self.io.note(timings.summary())
         return outcome

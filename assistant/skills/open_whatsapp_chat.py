@@ -1,9 +1,9 @@
 """Open the WhatsApp chat with a contact, without typing anything."""
 from __future__ import annotations
 
-from assistant.core.contacts import resolve_contact
+from assistant.core.contacts import resolve_contact, suggested_contact
 from assistant.skills import _whatsapp
-from assistant.skills.base import Result, Skill
+from assistant.skills.base import Ask, Result, Skill
 
 
 class OpenWhatsAppChat(Skill):
@@ -25,9 +25,10 @@ class OpenWhatsAppChat(Skill):
     }
     risk = "safe"
 
-    def check(self, contact: str = "", **_) -> str | None:
+    def check(self, contact: str = "", **_) -> str | Ask | None:
         _, question = resolve_contact(self.config.contacts, contact)
-        return question
+        suggestion = suggested_contact(self.config.contacts, contact) if question else None
+        return Ask(question, {"contact": suggestion}) if suggestion else question
 
     def run(self, contact: str = "", **_) -> Result:
         found, question = resolve_contact(self.config.contacts, contact)

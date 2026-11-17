@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import os
 
-from assistant.core.matching import find_entry
-from assistant.skills.base import Result, Skill
+from assistant.core.matching import find_entry, join_or, suggest
+from assistant.skills.base import Ask, Result, Skill
 
 
 def _launch(target: str) -> None:
@@ -31,10 +31,22 @@ class OpenApp(Skill):
             "If the user names another app, still call this with that name; it will tell them it isn't set up."
         )
 
+    def check(self, app: str = "", **_) -> str | Ask | None:
+        """Unknown app: suggest a close name as a question (answered via follow-up), never open it."""
+        if find_entry(self.config.apps, app) is not None:
+            return None
+        close = suggest(app, [(k, (v or {}).get("aliases") or []) for k, v in self.config.apps.items()])
+        if len(close) == 1:
+            return Ask(f"Did you mean {close[0]}?", {"app": close[0]})
+        if close:
+            return f"Did you mean {join_or(close[:3])}?"
+        return f"I don't have '{app}' in my app list yet, so please add it to apps.yaml."
+
     def run(self, app: str = "", **_) -> Result:
         match = find_entry(self.config.apps, app)
         if match is None:
-            return Result(False, f"I don't have '{app}' in my app list yet, so please add it to apps.yaml.")
+            question = self.check(app=app)
+            return Result(False, getattr(question, "text", question) or "I couldn't find that app.")
         key, entry = match
         target = str(entry.get("target", "")).strip()
         if not target:

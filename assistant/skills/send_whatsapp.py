@@ -1,17 +1,16 @@
 """Open WhatsApp Desktop with a message typed to a contact. The user presses Enter to send."""
 from __future__ import annotations
 
-from assistant.core.contacts import resolve_contact
+from assistant.core.contacts import resolve_contact, suggested_contact
 from assistant.skills import _whatsapp
-from assistant.skills.base import Result, Skill
+from assistant.skills.base import Ask, Result, Skill
 
 
 class SendWhatsApp(Skill):
     name = "send_whatsapp"
     description = (
-        "Prepare a WhatsApp message to one of the user's contacts (WhatsApp opens with it typed; "
-        "the user presses Enter). Use for 'X ko message bhejo ke ...', 'tell X that ...', "
-        "'X ko WhatsApp karo ...'."
+        "Send a WhatsApp message to one of the user's contacts (it is read back for a yes first). "
+        "Use for 'X ko message bhejo ke ...', 'tell X that ...', 'X ko WhatsApp karo ...'."
     )
     parameters = {
         "type": "object",
@@ -34,9 +33,10 @@ class SendWhatsApp(Skill):
     }
     risk = "confirm"
 
-    def check(self, contact: str = "", **_) -> str | None:
+    def check(self, contact: str = "", **_) -> str | Ask | None:
         _, question = resolve_contact(self.config.contacts, contact)
-        return question
+        suggestion = suggested_contact(self.config.contacts, contact) if question else None
+        return Ask(question, {"contact": suggestion}) if suggestion else question
 
     def confirm_prompt(self, contact: str = "", message: str = "", **_) -> str:
         found, question = resolve_contact(self.config.contacts, contact)
@@ -52,4 +52,11 @@ class SendWhatsApp(Skill):
             _whatsapp.launch(_whatsapp.chat_url(found.phone, message.strip()))
         except OSError:
             return Result(False, "I couldn't open WhatsApp; is WhatsApp Desktop installed?")
-        return Result(True, f"WhatsApp is open with your message to {found.name}, so press Enter to send it.")
+        settings = self.config.settings.get("whatsapp", {})
+        if not settings.get("auto_send", False):
+            return Result(True, f"WhatsApp is open with your message to {found.name}, so press Enter to send it.")
+        if _whatsapp.send_when_ready(timeout=float(settings.get("window_timeout", 10)),
+                                     settle=float(settings.get("settle_seconds", 2))):
+            return Result(True, f"Sent your message to {found.name}.")
+        return Result(False, f"WhatsApp didn't come to the front, so your message to {found.name} "
+                             "is typed but not sent.")

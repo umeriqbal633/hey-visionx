@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from assistant.core.matching import normalize
+from assistant.core.matching import join_or, normalize, suggest
 from assistant.core.phone import PhoneError, display_phone, normalize_phone
 
 
@@ -61,19 +61,27 @@ def find_contacts(contacts: list[Contact], spoken: str) -> list[Contact]:
     return [c for c in contacts if any(normalize(n) == wanted for n in c.names())]
 
 
-def _join_or(names: list[str]) -> str:
-    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+def suggested_contact(contacts: list[Contact] | None, spoken: str) -> str | None:
+    """The one close-but-not-exact contact name, if there is exactly one (for 'Did you mean X?')."""
+    if not contacts or find_contacts(contacts, spoken):
+        return None
+    close = suggest(spoken, [(c.name, c.aliases) for c in contacts])
+    return close[0] if len(close) == 1 else None
 
 
 def resolve_contact(contacts: list[Contact] | None, spoken: str) -> tuple[Contact | None, str | None]:
-    """(contact, None) when exactly one usable match, else (None, one-sentence question)."""
+    """(contact, None) when exactly one usable match, else (None, one-sentence question).
+    A close-but-not-exact name is only suggested ("Did you mean ...?"), never used."""
     if contacts is None:
         return None, "I don't have a contacts list yet, so please copy contacts.example.yaml to contacts.yaml."
     matches = find_contacts(contacts, spoken)
     if not matches:
+        close = suggest(spoken, [(c.name, c.aliases) for c in contacts])[:3]
+        if close:
+            return None, f"Did you mean {join_or(close)}?"
         return None, f"I don't have '{spoken}' in my contacts, so please add them to contacts.yaml."
     if len(matches) > 1:
-        return None, f"Which {spoken} do you mean: {_join_or([c.name for c in matches])}?"
+        return None, f"Which {spoken} do you mean: {join_or([c.name for c in matches])}?"
     contact = matches[0]
     if not contact.phone:
         return None, f"{contact.name}'s number in contacts.yaml looks wrong, so please fix it."

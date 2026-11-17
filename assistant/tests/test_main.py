@@ -98,12 +98,27 @@ def test_confirm_skill_runs_on_haan(config, tmp_path):
     assert RiskySkill.ran and last_log(path)["confirmed"] is True
 
 
-def test_confirm_skill_cancels_on_anything_else(config, tmp_path):
-    brain, reg, io, logger, path = setup(config, tmp_path, Decision(skill="risky", params={"to": "Ali"}), ["ok"])
+def test_confirm_skill_cancels_after_two_unclear_answers(config, tmp_path):
+    brain, reg, io, logger, path = setup(config, tmp_path, Decision(skill="risky", params={"to": "Ali"}),
+                                         ["ok", "hmm"])
     assert handle("x", brain, reg, io, logger).reply == "Okay, cancelled."
+    assert io.asked == ["Do the risky thing to Ali? (yes/no)", "Please say yes or no."]
     assert not RiskySkill.ran
     log = last_log(path)
     assert log["confirmed"] is False and log["ok"] is False
+
+
+def test_clear_no_cancels_without_retry(config, tmp_path):
+    brain, reg, io, logger, _ = setup(config, tmp_path, Decision(skill="risky", params={"to": "Ali"}), ["nahi"])
+    assert handle("x", brain, reg, io, logger).reply == "Okay, cancelled."
+    assert len(io.asked) == 1 and not RiskySkill.ran
+
+
+def test_unclear_then_yes_runs(config, tmp_path):
+    brain, reg, io, logger, _ = setup(config, tmp_path, Decision(skill="risky", params={"to": "Ali"}),
+                                      ["Gigi", "yes"])
+    assert handle("x", brain, reg, io, logger).reply == "Done for Ali."
+    assert RiskySkill.ran
 
 
 def test_missing_required_param_asks(config, tmp_path):

@@ -54,6 +54,48 @@ def test_answer_is_sent_with_original_command(config, tmp_path):
     assert s.pending is None
 
 
+def test_did_you_mean_yes_runs_suggestion_without_brain(config, tmp_path):
+    """'Did you mean Ali Khan?' answered 'G.' (a spoken ji) opens Ali Khan's chat directly."""
+    from unittest.mock import patch
+    brain = ScriptedBrain(Decision(skill="open_whatsapp_chat", params={"contact": "Ali Kaan"}))
+    io = FakeIO()
+    io.extra_yes = frozenset({"g"})
+    config.contacts = [c for c in config.contacts if c.name != "Ali Raza"]
+    s = session(config, tmp_path, brain, io)
+    assert s.step("Ali Kaan ki chat kholo").reply == "Did you mean Ali Khan?"
+    with patch("assistant.skills._whatsapp.launch") as launch:
+        outcome = s.step("G.")
+    launch.assert_called_once_with("whatsapp://send?phone=923001234567")
+    assert outcome.reply == "Opening your WhatsApp chat with Ali Khan."
+    assert len(brain.inputs) == 1                     # the brain wasn't asked again
+    log = json.loads((tmp_path / "a.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert log["follow_up"] is True and log["params"]["contact"] == "Ali Khan"
+
+
+def test_did_you_mean_no_goes_back_to_brain(config, tmp_path):
+    brain = ScriptedBrain(Decision(skill="open_whatsapp_chat", params={"contact": "Ali Kaan"}),
+                          Decision(reply="Kis se baat karni hai?"))
+    config.contacts = [c for c in config.contacts if c.name != "Ali Raza"]
+    s = session(config, tmp_path, brain, FakeIO())
+    s.step("Ali Kaan ki chat kholo")
+    s.step("nahi, Sara")
+    assert len(brain.inputs) == 2 and 'The user answered: "nahi, Sara"' in brain.inputs[1]
+
+
+def test_did_you_mean_yes_still_needs_read_back_for_risky(config, tmp_path):
+    """A suggested contact for a WhatsApp send still goes through the normal yes/no read-back."""
+    from unittest.mock import patch
+    brain = ScriptedBrain(Decision(skill="send_whatsapp", params={"contact": "Ali Kaan", "message": "hi"}))
+    io = FakeIO(answers=["no"])
+    config.contacts = [c for c in config.contacts if c.name != "Ali Raza"]
+    s = session(config, tmp_path, brain, io)
+    s.step("Ali Kaan ko hi bhejo")
+    with patch("assistant.skills._whatsapp.launch") as launch:
+        s.step("yes")
+    assert "Send 'hi' to Ali Khan (+92 300 1234567)? (yes/no)" in io.said
+    launch.assert_not_called()
+
+
 def test_brain_question_also_takes_follow_up(config, tmp_path):
     brain = ScriptedBrain(Decision(reply="Kis app ko kholna hai?"),
                           Decision(skill="get_time"))

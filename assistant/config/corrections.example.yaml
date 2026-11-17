@@ -1,0 +1,7 @@
+# Copy to corrections.yaml (git-ignored) and add words speech-to-text keeps getting wrong.
+# Left: what VisionX heard (see "You (voice): ..." lines or logs/actions.jsonl).
+# Right: what you meant. Whole words only, not case-sensitive.
+
+corrections:
+  gronkolo: chrome kholo
+  chilao: chalao

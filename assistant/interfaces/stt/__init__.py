@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 
 import numpy as np
 
 from assistant.core.config import Config
+from assistant.core.corrections import apply_corrections
+from assistant.core.matching import compact
 from assistant.core.script import has_devanagari
 from assistant.interfaces.stt.base import STTError, STTProvider
 
@@ -24,15 +27,39 @@ class Transcript:
     notices: list[str] = field(default_factory=list)  # one-sentence messages for the user
 
 
+def strip_wake_phrase(text: str, name: str = "VisionX") -> str:
+    """'Hey VigenX, chrome kholo' -> 'chrome kholo'. Only the first 1-3 words are checked,
+    against 'hey/hi/ai <name>' and '<name>' (fuzzy, since STT mangles the name).
+    If nothing would be left, the text is returned unchanged."""
+    words = text.split()
+    target = compact(name)
+    forms = [target] + [compact(p + name) for p in ("hey", "hi", "ai", "ay", "oye")]
+    best_k, best = 0, 0.0
+    for k in (1, 2, 3):                       # the word count that matches best wins
+        if len(words) <= k:
+            continue
+        head = compact(" ".join(words[:k]))
+        score = max(SequenceMatcher(None, head, f).ratio() for f in forms) if head else 0.0
+        if score > best:
+            best_k, best = k, score
+    if best >= 0.70:
+        rest = " ".join(words[best_k:]).lstrip(",.!?;: ")
+        return rest or text
+    return text
+
+
 class Transcriber:
     def __init__(self, primary: STTProvider | None, fallback: STTProvider | None,
                  language: str | None = None, prompt: str | None = None,
-                 retry_language: str | None = "ur") -> None:
+                 retry_language: str | None = "ur", assistant_name: str = "VisionX",
+                 corrections: dict[str, str] | None = None) -> None:
         self.primary = primary
         self.fallback = fallback
         self.language = language or None
         self.prompt = prompt or None
         self.retry_language = retry_language or None
+        self.assistant_name = assistant_name
+        self.corrections = corrections or {}
 
     def _with_fallback(self, audio: np.ndarray, language: str | None, prompt: str | None,
                        notices: list[str]) -> tuple[str, str | None]:
@@ -59,6 +86,8 @@ class Transcriber:
         if has_devanagari(text):
             notices.append("I heard that in the wrong script, so please say it again.")
             text = ""
+        if text:
+            text = apply_corrections(strip_wake_phrase(text, self.assistant_name), self.corrections)
         return Transcript(text=text, provider=provider, notices=notices)
 
     def warm_up(self) -> None:
@@ -93,4 +122,5 @@ def get_transcriber(config: Config) -> tuple[Transcriber, list[str]]:
     if primary is None and fallback is not None:
         primary, fallback = fallback, None
     return Transcriber(primary, fallback, stt.get("language"), stt.get("prompt"),
-                       stt.get("retry_language", "ur")), notices
+                       stt.get("retry_language", "ur"), config.assistant_name,
+                       config.corrections), notices

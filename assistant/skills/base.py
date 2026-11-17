@@ -14,6 +14,15 @@ class Result:
     reply: str  # one short sentence to show or speak
 
 
+@dataclass(frozen=True)
+class Ask:
+    """A question from check(). If `on_yes` is set (e.g. {"contact": "Saad Attock"} for
+    'Did you mean Saad Attock?') and the user answers yes, the same skill runs again with
+    these params merged in, without asking the brain."""
+    text: str
+    on_yes: dict[str, Any] | None = None
+
+
 class Skill(ABC):
     name: ClassVar[str]
     description: str                     # the LLM reads this to decide when to use the skill
@@ -23,9 +32,10 @@ class Skill(ABC):
     def __init__(self, config: Config) -> None:
         self.config = config
 
-    def check(self, **params: Any) -> str | None:
+    def check(self, **params: Any) -> "str | Ask | None":
         """Runs before any read-back. Return a one-sentence question (e.g. 'Which Ali do you
-        mean?') to stop and ask the user, or None to continue. Never guess."""
+        mean?'), or an Ask with an `on_yes` suggestion, to stop and ask the user; or None to
+        continue. Never guess."""
         return None
 
     def confirm_prompt(self, **params: Any) -> str:

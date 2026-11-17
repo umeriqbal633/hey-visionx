@@ -73,11 +73,17 @@ Example commands:
 | `youtube chalao` | Opens youtube.com |
 | `lahore ka mausam search karo` | Google search |
 | `time kya hua hai` | Tells the time |
-| `Ali ko message bhejo ke main late hoon` | Reads it back, and on "haan" opens WhatsApp with the message typed (you press Enter) |
+| `Ali ko message bhejo ke main late hoon` | Reads it back, and on "haan" sends it in WhatsApp |
 | `Sara ki chat kholo` | Opens your WhatsApp chat with Sara |
+| `Umer wale Chrome mein YouTube kholo` | Opens YouTube in that Chrome profile (matched by name or email) |
 
-If a name matches nobody, or more than one contact (two "Ali"s), VisionX asks instead of
-guessing; type the command again with the full name.
+If a name is close but not exact ("Saad Atak"), VisionX asks "Did you mean Saad Attock?";
+just answer yes or no. If it matches nobody, or more than one contact (two "Ali"s), it asks
+instead of guessing.
+
+**WhatsApp auto-send:** after your yes, VisionX presses Enter in WhatsApp, but only if the
+WhatsApp window is in front; otherwise it leaves the message typed and tells you. Turn it off
+with `auto_send: false` under `whatsapp:` in `settings.yaml`.
 
 ## Tests
 
@@ -98,6 +104,10 @@ All in `assistant/config/`:
 | `apps.yaml` | Apps VisionX may open: name, aliases, `.exe` path or URI |
 | `websites.yaml` | Sites opened directly; everything else becomes a Google search |
 | `contacts.yaml` | Your contacts: name, aliases, phone (git-ignored; see `contacts.example.yaml`) |
+| `corrections.yaml` | Words speech-to-text keeps getting wrong → what you meant (git-ignored; see `corrections.example.yaml`) |
+
+**Teaching VisionX your voice:** when it mishears the same word again and again (check the
+`You (voice): ...` line), add it to `corrections.yaml`, e.g. `gronkolo: chrome kholo`.
 
 VisionX only opens what is listed in these files. To add an app, add an entry to
 `apps.yaml` (find Store apps' URIs or paths with `Get-StartApps` in PowerShell).

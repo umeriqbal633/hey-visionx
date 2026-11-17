@@ -92,6 +92,26 @@ def test_garbled_arguments_become_brain_error():
         make(client).choose("S", TOOLS, "x")
 
 
+def test_retries_once_on_tool_use_failed():
+    client = MagicMock()
+    req = httpx.Request("POST", "https://api.groq.com")
+    failed = groq.BadRequestError("tool_use_failed", response=httpx.Response(400, request=req),
+                                  body={"error": {"code": "tool_use_failed"}})
+    client.chat.completions.create.side_effect = [failed, completion("ok")]
+    assert make(client).choose("S", TOOLS, "x").text == "ok"
+    assert client.chat.completions.create.call_count == 2
+
+
+def test_other_bad_requests_are_not_retried():
+    client = MagicMock()
+    req = httpx.Request("POST", "https://api.groq.com")
+    client.chat.completions.create.side_effect = groq.BadRequestError(
+        "bad model param", response=httpx.Response(400, request=req), body={"error": {"code": "invalid"}})
+    with pytest.raises(BrainError):
+        make(client).choose("S", TOOLS, "x")
+    assert client.chat.completions.create.call_count == 1
+
+
 def _status_error(cls, code):
     request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
     return cls("boom", response=httpx.Response(code, request=request), body=None)

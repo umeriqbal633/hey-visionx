@@ -1,6 +1,7 @@
 # Secrets and personal data
 .env
 assistant/config/contacts.yaml
+assistant/config/corrections.yaml
 
 # Runtime
 assistant/logs/*
