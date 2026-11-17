@@ -16,10 +16,12 @@ class Clock:
 
 
 class FakeBox:
-    """Message box: shows `values` over time; Enter clears it if `clears`."""
+    """Message box: shows `values` over time; Send/Enter clears it if `clears`.
+    `has_button`: whether WhatsApp's Send button can be found and clicked."""
 
-    def __init__(self, values, clears=True):
-        self.values, self.clears, self.focused, self.entered = list(values), clears, False, False
+    def __init__(self, values, clears=True, has_button=True):
+        self.values, self.clears, self.has_button = list(values), clears, has_button
+        self.focused = self.entered = self.clicked = False
 
     def value(self):
         if self.entered and self.clears:
@@ -28,6 +30,12 @@ class FakeBox:
 
     def focus(self):
         self.focused = True
+
+    def click_send(self):
+        if not self.has_button:
+            return False
+        self.clicked = self.entered = True
+        return True
 
 
 def run(message, box, foregrounds=("whatsapp.root.exe",), find=None):
@@ -45,23 +53,39 @@ def run(message, box, foregrounds=("whatsapp.root.exe",), find=None):
     return status, pressed
 
 
-def test_sends_when_box_holds_exactly_the_message_and_clears():
+def test_clicks_send_when_box_holds_exactly_the_message_and_clears():
     box = FakeBox(["", "main late", "main late hoon"])
     status, pressed = run("main late hoon", box)
+    assert status == w.SENT and box.clicked and pressed == []
+
+
+def test_send_button_works_even_if_whatsapp_not_in_front():
+    # What happened at 11:28: Windows kept the terminal in front.
+    box = FakeBox(["main late hoon"])
+    status, pressed = run("main late hoon", box, foregrounds=("windowsterminal.exe",))
+    assert status == w.SENT and box.clicked
+
+
+def test_enter_fallback_only_without_button_and_with_whatsapp_in_front():
+    box = FakeBox(["main late hoon"], has_button=False)
+    status, pressed = run("main late hoon", box)
     assert status == w.SENT and pressed == [1] and box.focused
+    box = FakeBox(["main late hoon"], has_button=False)
+    status, pressed = run("main late hoon", box, foregrounds=("chrome.exe",))
+    assert status == w.NOT_FRONT and pressed == []
 
 
 def test_old_draft_in_box_blocks_sending():
     # What actually happened: an old unsent draft plus the new message, joined together.
     box = FakeBox(["Hey Saad, how are you? main late hoon"])
     status, pressed = run("main late hoon", box)
-    assert status == w.DRAFT_CONFLICT and pressed == []
+    assert status == w.DRAFT_CONFLICT and not box.clicked and pressed == []
 
 
-def test_enter_not_taken_is_not_reported_as_sent():
+def test_send_not_taken_is_not_reported_as_sent():
     box = FakeBox(["main late hoon"], clears=False)
-    status, pressed = run("main late hoon", box)
-    assert status == w.NOT_CLEARED and pressed == [1]
+    status, _ = run("main late hoon", box)
+    assert status == w.NOT_CLEARED and box.clicked
 
 
 def test_message_never_appears_means_no_enter():
@@ -73,17 +97,6 @@ def test_message_never_appears_means_no_enter():
 def test_box_not_found_means_no_enter():
     status, pressed = run("hi", None, find=lambda: None)
     assert status == w.NO_TEXT and pressed == []
-
-
-def test_whatsapp_never_in_front_means_no_enter():
-    status, pressed = run("hi", FakeBox(["hi"]), foregrounds=("chrome.exe",))
-    assert status == w.NOT_FRONT and pressed == []
-
-
-def test_user_switches_away_before_enter():
-    # 1st check: WhatsApp arrives in front; 2nd check (right before Enter): user is in Chrome.
-    status, pressed = run("hi", FakeBox(["hi"]), foregrounds=("whatsapp.root.exe", "chrome.exe"))
-    assert status == w.NOT_FRONT and pressed == []
 
 
 def test_whitespace_differences_are_ok():

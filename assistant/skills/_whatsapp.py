@@ -66,15 +66,19 @@ def foreground_process() -> str:
 class ComposeBox(Protocol):
     def value(self) -> str: ...
     def focus(self) -> None: ...
+    def click_send(self) -> bool: ...   # True if WhatsApp's Send button was found and clicked
 
 
 class _UIABox:
-    def __init__(self, element: Any, value_iface: Any) -> None:
-        self._el, self._iface = element, value_iface
+    """WhatsApp's message box and Send button, through UI Automation. Clicking Send this way
+    works even when WhatsApp isn't the window in front (Windows may refuse to bring it there)."""
+
+    def __init__(self, uia: Any, window: Any, element: Any, ifaces: dict[str, Any]) -> None:
+        self._uia, self._window, self._el, self._if = uia, window, element, ifaces
 
     def value(self) -> str:
         try:
-            return self._el.GetCurrentPattern(10002).QueryInterface(self._iface).CurrentValue or ""
+            return self._el.GetCurrentPattern(10002).QueryInterface(self._if["value"]).CurrentValue or ""
         except Exception:
             return ""
 
@@ -84,6 +88,18 @@ class _UIABox:
         except Exception:
             pass
 
+    def click_send(self) -> bool:
+        try:
+            cond = self._uia.CreateAndCondition(self._uia.CreatePropertyCondition(30003, 50000),  # Button
+                                                self._uia.CreatePropertyCondition(30005, "Send"))   # Name
+            button = self._window.FindFirst(4, cond)
+            if not button:
+                return False
+            button.GetCurrentPattern(10000).QueryInterface(self._if["invoke"]).Invoke()
+            return True
+        except Exception:
+            return False
+
 
 def find_compose_box() -> ComposeBox | None:
     """WhatsApp's message box ("Type a message to ..."), via UI Automation; None if not found."""
@@ -91,6 +107,7 @@ def find_compose_box() -> ComposeBox | None:
         import comtypes.client
         comtypes.client.GetModule("UIAutomationCore.dll")
         from comtypes.gen.UIAutomationClient import (CUIAutomation, IUIAutomation,
+                                                     IUIAutomationInvokePattern,
                                                      IUIAutomationValuePattern)
         uia = comtypes.client.CreateObject(CUIAutomation, interface=IUIAutomation)
         window = uia.GetRootElement().FindFirst(2, uia.CreatePropertyCondition(30005, "WhatsApp"))
@@ -100,7 +117,8 @@ def find_compose_box() -> ComposeBox | None:
         for i in range(edits.Length):
             el = edits.GetElement(i)
             if (el.CurrentName or "").lower().startswith(COMPOSE_PREFIX):
-                return _UIABox(el, IUIAutomationValuePattern)
+                return _UIABox(uia, window, el, {"value": IUIAutomationValuePattern,
+                                                 "invoke": IUIAutomationInvokePattern})
     except Exception:
         return None
     return None
@@ -120,14 +138,10 @@ def send_verified(message: str, timeout: float = 10.0, clear_timeout: float = 4.
                   press: Callable[[], None] = press_enter,
                   sleep: Callable[[float], None] = time.sleep,
                   clock: Callable[[], float] = time.monotonic) -> str:
-    """Press Enter only when WhatsApp is in front and its message box holds exactly `message`;
-    return SENT only once the box has emptied. Never presses Enter on any other text."""
+    """Send only when WhatsApp's message box holds exactly `message`: click its Send button
+    (works even if WhatsApp isn't in front); if the button can't be found, fall back to Enter,
+    but only with WhatsApp in front. Return SENT only once the box has emptied."""
     deadline = clock() + timeout
-    while foreground() not in WHATSAPP_PROCESSES:
-        if clock() >= deadline:
-            return NOT_FRONT
-        sleep(0.25)
-
     box, text = None, ""
     while clock() < deadline:
         box = find_box()
@@ -140,11 +154,12 @@ def send_verified(message: str, timeout: float = 10.0, clear_timeout: float = 4.
     if not same_text(text, message):
         return DRAFT_CONFLICT                      # an old draft is in the box too: never send that
 
-    box.focus()
-    sleep(0.3)
-    if foreground() not in WHATSAPP_PROCESSES:
-        return NOT_FRONT
-    press()
+    if not box.click_send():
+        box.focus()
+        sleep(0.3)
+        if foreground() not in WHATSAPP_PROCESSES:
+            return NOT_FRONT
+        press()
 
     clear_deadline = clock() + clear_timeout
     while clock() < clear_deadline:
