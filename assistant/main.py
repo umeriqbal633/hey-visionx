@@ -215,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
 
     registry = discover(config)
     brain = Brain(provider, registry, config.assistant_name, config.company)
+    registry.attach(brain)
     session = Session(io, brain, registry, ActionLogger(LOG_FILE),
                       show_timings=bool(config.settings.get("show_timings", True)))
     io.say(f"Hi, I'm {config.assistant_name}.")

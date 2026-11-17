@@ -1,0 +1,14 @@
+# Example of config/schedules.yaml (the real file is git-ignored and written by VisionX).
+# Create, list and delete tasks by voice; don't edit the real file by hand unless needed.
+tasks:
+  - id: a1b2c3
+    repeat: daily               # once | daily | weekdays | weekly
+    time: "09:00"               # 24-hour
+    skill: send_whatsapp        # the exact action approved when the task was created
+    params:
+      contact: Ali Khan
+      message: good morning
+    date: "2026-11-18"          # first run (or the run date for "once")
+    days: []                    # weekly only, e.g. [mon, thu]
+    description: "Every day at 9:00 AM: send 'good morning' to Ali Khan (+92 300 1234567) on WhatsApp"
+    created: "2026-11-17T18:00:00"

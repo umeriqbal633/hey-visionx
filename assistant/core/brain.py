@@ -25,7 +25,9 @@ YouTube kholo", "ali123 wala browser"), use open_chrome_profile in one call.
 Examples: "chrome kholo" = open Chrome; "youtube chalao" = open YouTube;
 "time kya hua hai" / "kitne baje hain" = what time is it; "biryani recipe search karo" = search Google for biryani recipe;
 "Ali ko message bhejo ke main late hoon" = WhatsApp Ali the message "main late hoon";
-"Sara ki chat kholo" = open the WhatsApp chat with Sara.
+"Sara ki chat kholo" = open the WhatsApp chat with Sara;
+"har roz subah 9 baje Ali ko good morning bhejo" = schedule_task(command "Ali ko good morning bhejo",
+time "09:00", repeat "daily"). Use schedule_task whenever the user gives a time or repetition.
 
 Messages to people: copy the user's message words exactly, in the same language and script.
 Never translate (Roman Urdu stays Roman Urdu), correct, or rephrase a message unless the user asks you to.
@@ -67,5 +69,6 @@ class Brain:
         if response.tool_name:
             if self.registry.get(response.tool_name) is None:
                 return Decision(reply="I don't have a skill for that yet.")
-            return Decision(skill=response.tool_name, params=response.tool_input)
+            params = {k: v for k, v in response.tool_input.items() if k}   # models sometimes send {"": {}}
+            return Decision(skill=response.tool_name, params=params)
         return Decision(reply=response.text or "Sorry, I didn't catch that.")

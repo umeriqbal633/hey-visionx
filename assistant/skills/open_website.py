@@ -53,6 +53,10 @@ class OpenWebsite(Skill):
             "and it will be searched on Google."
         )
 
+    def describe(self, target: str = "", **_) -> str:
+        _, label, is_search = resolve_url(self.config.websites, target or "")
+        return f"search Google for {label}" if is_search else f"open {label}"
+
     def run(self, target: str = "", **_) -> Result:
         target = (target or "").strip()
         if not target:

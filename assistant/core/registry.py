@@ -26,6 +26,12 @@ class Registry:
     def tool_schemas(self) -> list[dict[str, Any]]:
         return [s.tool_schema() for s in self._skills.values()]
 
+    def attach(self, brain: Any) -> None:
+        """Give every skill access to the brain and this registry (e.g. schedule_task turns
+        'Saad ko good morning bhejo' into an exact skill call at creation time)."""
+        for skill in self._skills.values():
+            skill.brain, skill.registry = brain, self
+
 
 def discover(config: Config, package: ModuleType = skills_pkg) -> Registry:
     found: list[Skill] = []

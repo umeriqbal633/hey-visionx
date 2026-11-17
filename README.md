@@ -3,8 +3,8 @@
 A desktop assistant for Windows by VisionX Intelligence. You type (and later speak)
 commands in English, Urdu or Roman Urdu, and VisionX opens apps, websites and more.
 
-**Status:** Phase 3 (voice with push-to-talk, or typed: open apps, open websites / Google
-search, tell the time, WhatsApp messages and chats).
+**Status:** Phase 4 (voice with push-to-talk, or typed: open apps, open websites / Google
+search, Chrome profiles, tell the time, WhatsApp messages and chats, scheduled tasks).
 
 ## Setup (once)
 
@@ -80,6 +80,23 @@ Example commands:
 If a name is close but not exact ("Saad Atak"), VisionX asks "Did you mean Saad Attock?";
 just answer yes or no. If it matches nobody, or more than one contact (two "Ali"s), it asks
 instead of guessing.
+
+**Scheduled tasks:** add a time or repetition to any command and VisionX schedules it:
+
+| You say | VisionX does |
+|---|---|
+| `har roz subah 9 baje Saad ko good morning bhejo` | Every day at 9:00 AM sends that WhatsApp |
+| `every weekday at 8:30 YouTube kholo` | Mon–Fri at 8:30 AM opens YouTube |
+| `kal shaam 5 baje Saad ko message karo ke main aa raha hoon` | Once, tomorrow at 5:00 PM |
+| `har Monday aur Thursday raat 9 baje calculator kholo` | Weekly on those days |
+| `mere scheduled tasks batao` | Lists them, numbered |
+| `9 baje wala task delete karo` / `task 2 delete karo` | Deletes one (asks yes/no first) |
+
+VisionX reads the whole schedule back once; your yes approves every future run (scheduled
+WhatsApp messages are sent without asking again). Tasks run through Windows Task Scheduler
+(folder "VisionX"), even when VisionX isn't open; if the PC was off or asleep, the task runs
+as soon as it's back on. You need to be logged in; a WhatsApp send that can't be verified
+(e.g. locked screen) is left typed and logged as not sent.
 
 **WhatsApp auto-send:** after your yes, VisionX presses Enter in WhatsApp, but only if the
 WhatsApp window is in front; otherwise it leaves the message typed and tells you. Turn it off

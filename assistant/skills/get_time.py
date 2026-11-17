@@ -16,6 +16,9 @@ class GetTime(Skill):
     parameters = {"type": "object", "properties": {}}
     risk = "safe"
 
+    def describe(self, **_) -> str:
+        return "tell the time"
+
     def run(self, **_) -> Result:
         now = _now()
         clock = now.strftime("%I:%M %p").lstrip("0")

@@ -64,6 +64,9 @@ assistant/
     script.py             # Devanagari / Urdu / Latin detection; speakable() for TTS
     corrections.py        # corrections.yaml: misheard word -> intended word (voice only)
     chrome_profiles.py    # reads Chrome's "Local State" (read-only) to match profiles by name/email
+    schedules.py          # scheduled task model, parsing, schedules.yaml, Task Scheduler XML
+    scheduler_windows.py  # schtasks create/delete/query (argument lists, no shell)
+  run_task.py             # what Windows runs at a task's time: python -m assistant.run_task <id>
     timing.py             # per-step timings (rec, stt, brain, check, skill)
   skills/
     base.py               # Skill base class
@@ -86,6 +89,7 @@ assistant/
     websites.yaml         # name + aliases -> URL; anything else = google.com/search?q= only
     contacts.yaml         # list of name + aliases + phone (git-ignored; contacts.example.yaml committed)
     corrections.yaml      # personal speech fixes (git-ignored; corrections.example.yaml committed)
+    schedules.yaml        # scheduled tasks (git-ignored; schedules.example.yaml committed)
     projects.yaml         # name + aliases -> folder path
   logs/
   tests/
@@ -130,8 +134,8 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
 - [x] 3. Voice: push-to-talk hotkey, speech-to-text, text-to-speech
 - [x] 3.1 Accuracy (better STT, fuzzy "Did you mean", corrections, yes/no retry),
       Chrome profiles, WhatsApp auto-send
-- [ ] 4. Call skill, coding skill (Claude Code), reminders, daily/scheduled tasks
-      (proposed: Windows Task Scheduler; approve each schedule once at creation)
+- [x] 4. Scheduled tasks (once / daily / weekdays / weekly) via Windows Task Scheduler
+- [ ] 4b. Call skill, coding skill (Claude Code), reminders (moved out of Phase 4 by the user)
 - [ ] 5. Wake word, system tray app, start on boot
 - [ ] 6. Product prep (later)
 
@@ -195,6 +199,23 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
 - Timings (`show_timings`): rec / stt / brain / check / skill and release→action (target < 3 s)
   are printed and logged to actions.jsonl.
 - Git: push to `origin` (github.com/umeriqbal633/hey-visionx) once per finished phase.
+
+## Phase 4 decisions: scheduled tasks (2026-11-17)
+- Skills: `schedule_task` (confirm), `list_scheduled_tasks` (safe), `delete_scheduled_task` (confirm).
+- At creation the command is turned into an exact skill call by the brain (`Registry.attach`
+  gives skills `self.brain` / `self.registry`), checked like a normal command, and read back
+  in full ("Every day at 9:00 AM: send 'good morning' to … on WhatsApp. Schedule it?").
+  The plan is cached so the read-back and the saved task are identical.
+- The yes approves every run (user decision): scheduled WhatsApp sends go out without asking.
+- Storage: `config/schedules.yaml` (git-ignored) holds the approved skill + params; each task
+  is also `VisionX\<id>` in Windows Task Scheduler (schtasks + XML, no admin, "Interactive
+  only", StartWhenAvailable = run as soon as the PC is back on after a missed time).
+- Windows runs `pythonw -m assistant.run_task <id>`: runs the stored skill (no LLM, no
+  question), logs `"scheduled": true`, speaks a one-line result (`scheduler.announce`),
+  removes one-time tasks afterwards. Scheduling skills can never be scheduled or run that way.
+- Dates/days ("kal", "parson", weekday names incl. peer/jumma) are resolved by code, not the
+  LLM. "9 baje" without AM/PM matches both 9 AM and 9 PM tasks and asks if both exist.
+- Locked screen: a WhatsApp send that can't be verified is left typed and logged as not sent.
 
 ## Skill notes
 - **open_website:** opens a URL from `websites.yaml`, otherwise only ever

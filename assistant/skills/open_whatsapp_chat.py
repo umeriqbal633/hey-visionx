@@ -30,6 +30,10 @@ class OpenWhatsAppChat(Skill):
         suggestion = suggested_contact(self.config.contacts, contact) if question else None
         return Ask(question, {"contact": suggestion}) if suggestion else question
 
+    def describe(self, contact: str = "", **_) -> str:
+        found, _ = resolve_contact(self.config.contacts, contact)
+        return f"open the WhatsApp chat with {found.name if found else contact}"
+
     def run(self, contact: str = "", **_) -> Result:
         found, question = resolve_contact(self.config.contacts, contact)
         if found is None:

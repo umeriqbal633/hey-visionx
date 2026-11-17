@@ -2,6 +2,7 @@
 .env
 assistant/config/contacts.yaml
 assistant/config/corrections.yaml
+assistant/config/schedules.yaml
 
 # Runtime
 assistant/logs/*

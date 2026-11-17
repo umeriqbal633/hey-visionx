@@ -42,6 +42,10 @@ class OpenApp(Skill):
             return f"Did you mean {join_or(close[:3])}?"
         return f"I don't have '{app}' in my app list yet, so please add it to apps.yaml."
 
+    def describe(self, app: str = "", **_) -> str:
+        match = find_entry(self.config.apps, app)
+        return f"open {match[0] if match else app}"
+
     def run(self, app: str = "", **_) -> Result:
         match = find_entry(self.config.apps, app)
         if match is None:

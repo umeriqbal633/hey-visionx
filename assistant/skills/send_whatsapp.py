@@ -38,6 +38,11 @@ class SendWhatsApp(Skill):
         suggestion = suggested_contact(self.config.contacts, contact) if question else None
         return Ask(question, {"contact": suggestion}) if suggestion else question
 
+    def describe(self, contact: str = "", message: str = "", **_) -> str:
+        found, _ = resolve_contact(self.config.contacts, contact)
+        who = f"{found.name} ({found.display})" if found else contact
+        return f"send '{message.strip()}' to {who} on WhatsApp"
+
     def confirm_prompt(self, contact: str = "", message: str = "", **_) -> str:
         found, question = resolve_contact(self.config.contacts, contact)
         if found is None:

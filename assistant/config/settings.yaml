@@ -64,6 +64,12 @@ whatsapp:
   auto_send: true
   window_timeout: 10            # seconds to wait for WhatsApp and the typed message
 
+scheduler:
+  # Scheduled tasks live in config/schedules.yaml (git-ignored) and in Windows Task Scheduler
+  # under the "VisionX" folder. Missed runs (PC off/asleep) run as soon as the PC is back on.
+  announce: true                # speak a one-line result when a scheduled task runs
+  whatsapp_timeout: 30          # seconds; WhatsApp may need to start up for a scheduled send
+
 chrome:
   user_data_dir: "%LOCALAPPDATA%\\Google\\Chrome\\User Data"   # where Chrome keeps profiles
 

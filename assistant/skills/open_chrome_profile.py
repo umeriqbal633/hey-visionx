@@ -47,6 +47,14 @@ class OpenChromeProfile(Skill):
         suggestion = suggested_profile(profiles, profile) if question else None
         return Ask(question, {"profile": suggestion.name}) if suggestion else question
 
+    def describe(self, profile: str = "", site: str | None = "", **_) -> str:
+        found, _ = resolve_profile(self._profiles(), profile)
+        where = found.label if found else f"the '{profile}' profile"
+        if site:
+            _, label, is_search = resolve_url(self.config.websites, site)
+            return f"{'search Google for ' + label if is_search else 'open ' + label} in {where}"
+        return f"open Chrome with {where}"
+
     def run(self, profile: str = "", site: str = "", **_) -> Result:
         found, question = resolve_profile(self._profiles(), profile)
         if found is None:

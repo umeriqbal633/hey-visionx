@@ -31,6 +31,14 @@ class Skill(ABC):
 
     def __init__(self, config: Config) -> None:
         self.config = config
+        self.brain: Any = None       # set by Registry.attach(); used by skills like schedule_task
+        self.registry: Any = None
+
+    def describe(self, **params: Any) -> str:
+        """Short lower-case phrase for this action, used in schedule read-backs and lists,
+        e.g. "send 'good morning' to Saad Attock (+92 370 1651552)"."""
+        args = ", ".join(f"{k}={v}" for k, v in params.items())
+        return f"{self.name.replace('_', ' ')}" + (f" ({args})" if args else "")
 
     def check(self, **params: Any) -> "str | Ask | None":
         """Runs before any read-back. Return a one-sentence question (e.g. 'Which Ali do you
