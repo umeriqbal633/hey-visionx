@@ -9,6 +9,8 @@ sounddevice==0.5.6
 numpy==2.5.5
 pynput==1.8.2
 pyttsx3==2.99
+# UI Automation (reads WhatsApp's message box to verify auto-send)
+comtypes==1.5.0
 faster-whisper==1.2.1
 # Pinned: Smart App Control blocks ctranslate2 4.9.0's DLL on this PC; 4.8.5 is allowed.
 ctranslate2==4.8.5

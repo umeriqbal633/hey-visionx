@@ -58,11 +58,11 @@ stt:
     preload: true               # load in the background at start so fallback is ready
 
 whatsapp:
-  # true: after your yes, VisionX presses Enter in WhatsApp (only if WhatsApp is the window in
-  # front, checked before and after the chat loads). false: it only types the message.
+  # true: after your yes, VisionX presses Enter in WhatsApp, but only when WhatsApp is in front
+  # and its message box holds exactly your message (an old draft there blocks sending), and it
+  # only says "sent" once the box is empty. false: it only types the message.
   auto_send: true
-  window_timeout: 10            # seconds to wait for WhatsApp to come to the front
-  settle_seconds: 2             # wait for the chat and text to load before pressing Enter
+  window_timeout: 10            # seconds to wait for WhatsApp and the typed message
 
 chrome:
   user_data_dir: "%LOCALAPPDATA%\\Google\\Chrome\\User Data"   # where Chrome keeps profiles

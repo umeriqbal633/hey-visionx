@@ -172,9 +172,12 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
   ("Muhammad (…633)"); full emails never go to the LLM. On this PC the …633 account is the
   **Default ("Muhammad")** profile; "Umer" is a different (…634) account.
 - **WhatsApp auto-send is ON** (user decision 2026-11-17, reverses the Phase 2 "press Enter
-  yourself" rule): after the yes, VisionX presses Enter only if WhatsApp.Root.exe is the
-  foreground window, checked before and after a 2 s settle; otherwise it leaves the message
-  typed and says so. `whatsapp.auto_send: false` turns it off. Still no unofficial APIs.
+  yourself" rule). First version (foreground check + Enter) failed live: it reported "Sent"
+  but nothing was sent, because the deep link APPENDS to an existing unsent draft and a
+  foreground check proves nothing. Current version (`_whatsapp.send_verified`) uses UI
+  Automation (comtypes) on the "Type a message to …" box: Enter only if the box holds exactly
+  the message (an old draft → don't send, tell the user), and "Sent" only once the box empties;
+  otherwise "typed but not sent". `whatsapp.auto_send: false` turns it off. No unofficial APIs.
 - Groq brain: optional tool params allow `null`; one retry on Groq's `tool_use_failed` 400.
 
 ## Voice (Phase 3) decisions

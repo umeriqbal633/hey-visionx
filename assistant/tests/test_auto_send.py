@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from assistant.skills._whatsapp import send_when_ready
+from assistant.skills import _whatsapp as w
 from assistant.skills.send_whatsapp import SendWhatsApp
 
 
@@ -15,59 +15,111 @@ class Clock:
         self.t += s
 
 
-def run(foregrounds, timeout=10.0):
-    """foregrounds: successive results of foreground(); the last one repeats."""
+class FakeBox:
+    """Message box: shows `values` over time; Enter clears it if `clears`."""
+
+    def __init__(self, values, clears=True):
+        self.values, self.clears, self.focused, self.entered = list(values), clears, False, False
+
+    def value(self):
+        if self.entered and self.clears:
+            return ""
+        return self.values.pop(0) if len(self.values) > 1 else self.values[0]
+
+    def focus(self):
+        self.focused = True
+
+
+def run(message, box, foregrounds=("whatsapp.root.exe",), find=None):
     seq, pressed, clock = list(foregrounds), [], Clock()
 
     def fg():
         return seq.pop(0) if len(seq) > 1 else seq[0]
-    ok = send_when_ready(timeout=timeout, settle=2.0, foreground=fg, press=lambda: pressed.append(1),
-                         sleep=clock.sleep, clock=clock.now)
-    return ok, pressed
+
+    def press():
+        pressed.append(1)
+        if box is not None:
+            box.entered = True
+    status = w.send_verified(message, timeout=10, foreground=fg, find_box=find or (lambda: box),
+                             press=press, sleep=clock.sleep, clock=clock.now)
+    return status, pressed
 
 
-def test_presses_enter_when_whatsapp_is_in_front():
-    ok, pressed = run(["windowsterminal.exe", "windowsterminal.exe", "whatsapp.root.exe"])
-    assert ok and pressed == [1]
+def test_sends_when_box_holds_exactly_the_message_and_clears():
+    box = FakeBox(["", "main late", "main late hoon"])
+    status, pressed = run("main late hoon", box)
+    assert status == w.SENT and pressed == [1] and box.focused
 
 
-def test_never_presses_if_whatsapp_never_comes_to_front():
-    ok, pressed = run(["chrome.exe"])
-    assert not ok and pressed == []
+def test_old_draft_in_box_blocks_sending():
+    # What actually happened: an old unsent draft plus the new message, joined together.
+    box = FakeBox(["Hey Saad, how are you? main late hoon"])
+    status, pressed = run("main late hoon", box)
+    assert status == w.DRAFT_CONFLICT and pressed == []
 
 
-def test_never_presses_if_user_switches_away_while_loading():
-    ok, pressed = run(["whatsapp.root.exe", "chrome.exe"])
-    assert not ok and pressed == []
+def test_enter_not_taken_is_not_reported_as_sent():
+    box = FakeBox(["main late hoon"], clears=False)
+    status, pressed = run("main late hoon", box)
+    assert status == w.NOT_CLEARED and pressed == [1]
 
 
-def test_unknown_foreground_is_not_whatsapp():
-    ok, pressed = run([""])
-    assert not ok and pressed == []
+def test_message_never_appears_means_no_enter():
+    box = FakeBox([""])
+    status, pressed = run("main late hoon", box)
+    assert status == w.NO_TEXT and pressed == []
 
 
-def test_skill_auto_send_on(config):
+def test_box_not_found_means_no_enter():
+    status, pressed = run("hi", None, find=lambda: None)
+    assert status == w.NO_TEXT and pressed == []
+
+
+def test_whatsapp_never_in_front_means_no_enter():
+    status, pressed = run("hi", FakeBox(["hi"]), foregrounds=("chrome.exe",))
+    assert status == w.NOT_FRONT and pressed == []
+
+
+def test_user_switches_away_before_enter():
+    # 1st check: WhatsApp arrives in front; 2nd check (right before Enter): user is in Chrome.
+    status, pressed = run("hi", FakeBox(["hi"]), foregrounds=("whatsapp.root.exe", "chrome.exe"))
+    assert status == w.NOT_FRONT and pressed == []
+
+
+def test_whitespace_differences_are_ok():
+    assert w.same_text("main  late\nhoon ", "main late hoon")
+    assert not w.same_text("x main late hoon", "main late hoon")
+
+
+def skill_run(config, status):
     config.settings["whatsapp"] = {"auto_send": True}
-    with patch("assistant.skills._whatsapp.launch") as launch, \
-         patch("assistant.skills._whatsapp.send_when_ready", return_value=True) as send:
-        result = SendWhatsApp(config).run(contact="Ali Khan", message="main late hoon")
-    launch.assert_called_once()
-    send.assert_called_once()
+    with patch("assistant.skills._whatsapp.launch"), \
+         patch("assistant.skills._whatsapp.send_verified", return_value=status) as send:
+        result = SendWhatsApp(config).run(contact="Ali Khan", message=" main late hoon ")
+    return result, send
+
+
+def test_skill_reports_sent_only_when_verified(config):
+    result, send = skill_run(config, w.SENT)
+    assert send.call_args.args[0] == "main late hoon"
     assert result.ok and result.reply == "Sent your message to Ali Khan."
 
 
-def test_skill_auto_send_window_problem_is_reported(config):
-    config.settings["whatsapp"] = {"auto_send": True}
-    with patch("assistant.skills._whatsapp.launch"), \
-         patch("assistant.skills._whatsapp.send_when_ready", return_value=False):
-        result = SendWhatsApp(config).run(contact="Ali Khan", message="hi")
-    assert not result.ok and "typed but not sent" in result.reply
+def test_skill_reports_draft_conflict(config):
+    result, _ = skill_run(config, w.DRAFT_CONFLICT)
+    assert not result.ok and "already had unsent text" in result.reply
+
+
+def test_skill_reports_not_sent(config):
+    for status in (w.NOT_FRONT, w.NO_TEXT, w.NOT_CLEARED):
+        result, _ = skill_run(config, status)
+        assert not result.ok and "typed but not sent" in result.reply
 
 
 def test_skill_auto_send_off_only_types(config):
     config.settings["whatsapp"] = {"auto_send": False}
     with patch("assistant.skills._whatsapp.launch"), \
-         patch("assistant.skills._whatsapp.send_when_ready") as send:
+         patch("assistant.skills._whatsapp.send_verified") as send:
         result = SendWhatsApp(config).run(contact="Ali Khan", message="hi")
     send.assert_not_called()
     assert "press Enter" in result.reply
@@ -93,6 +145,7 @@ def test_no_auto_send_without_yes(config, tmp_path):
 
     config.settings["whatsapp"] = {"auto_send": True}
     with patch("assistant.skills._whatsapp.launch") as launch, \
-         patch("assistant.skills._whatsapp.send_when_ready") as send:
+         patch("assistant.skills._whatsapp.send_verified") as send:
         handle("x", Brain(), discover(config), IO(), ActionLogger(tmp_path / "a.jsonl"))
-    launch.assert_not_called() and send.assert_not_called()
+    launch.assert_not_called()
+    send.assert_not_called()

@@ -55,8 +55,15 @@ class SendWhatsApp(Skill):
         settings = self.config.settings.get("whatsapp", {})
         if not settings.get("auto_send", False):
             return Result(True, f"WhatsApp is open with your message to {found.name}, so press Enter to send it.")
-        if _whatsapp.send_when_ready(timeout=float(settings.get("window_timeout", 10)),
-                                     settle=float(settings.get("settle_seconds", 2))):
+        status = _whatsapp.send_verified(message.strip(), timeout=float(settings.get("window_timeout", 10)))
+        if status == _whatsapp.SENT:
             return Result(True, f"Sent your message to {found.name}.")
-        return Result(False, f"WhatsApp didn't come to the front, so your message to {found.name} "
-                             "is typed but not sent.")
+        if status == _whatsapp.DRAFT_CONFLICT:
+            return Result(False, f"{found.name}'s chat already had unsent text, so I didn't send anything; "
+                                 "please check WhatsApp.")
+        reason = {
+            _whatsapp.NOT_FRONT: "WhatsApp didn't come to the front",
+            _whatsapp.NO_TEXT: "I couldn't see the message in WhatsApp's message box",
+            _whatsapp.NOT_CLEARED: "WhatsApp didn't take the Enter key",
+        }.get(status, "something went wrong")
+        return Result(False, f"{reason}, so your message to {found.name} is typed but not sent.")
