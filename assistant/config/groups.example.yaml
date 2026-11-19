@@ -1,0 +1,12 @@
+# Copy this file to groups.yaml and replace the fake groups with yours.
+# groups.yaml is git-ignored; only this example is committed.
+#
+# name: EXACTLY as WhatsApp shows it (same spaces, brackets, emojis). VisionX searches for it
+#       and only sends once the open chat has exactly this name.
+# aliases: what you'd say for it. Optional.
+
+groups:
+  - name: Family Group
+    aliases: [family, ghar wale]
+  - name: Office Team (Lahore)
+    aliases: [office, office team]

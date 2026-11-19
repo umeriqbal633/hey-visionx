@@ -26,6 +26,8 @@ Examples: "chrome kholo" = open Chrome; "youtube chalao" = open YouTube;
 "time kya hua hai" / "kitne baje hain" = what time is it; "biryani recipe search karo" = search Google for biryani recipe;
 "Ali ko message bhejo ke main late hoon" = WhatsApp Ali the message "main late hoon";
 "Sara ki chat kholo" = open the WhatsApp chat with Sara;
+"C10 group mein bhejo ke class 8 baje hai" = send_whatsapp_group(group "C10", message "class 8 baje hai")
+(a group, not a person, whenever the user says group / grup / گروپ);
 "har roz subah 9 baje Ali ko good morning bhejo" = schedule_task(command "Ali ko good morning bhejo",
 time "09:00", repeat "daily"). Use schedule_task whenever the user gives a time or repetition.
 

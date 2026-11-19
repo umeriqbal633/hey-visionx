@@ -4,7 +4,8 @@ A desktop assistant for Windows by VisionX Intelligence. You type (and later spe
 commands in English, Urdu or Roman Urdu, and VisionX opens apps, websites and more.
 
 **Status:** Phase 4 (voice with push-to-talk, or typed: open apps, open websites / Google
-search, Chrome profiles, tell the time, WhatsApp messages and chats, scheduled tasks).
+search, Chrome profiles, tell the time, WhatsApp messages to contacts and groups, chats,
+scheduled tasks).
 
 ## Setup (once)
 
@@ -81,6 +82,22 @@ If a name is close but not exact ("Saad Atak"), VisionX asks "Did you mean Saad 
 just answer yes or no. If it matches nobody, or more than one contact (two "Ali"s), it asks
 instead of guessing.
 
+**WhatsApp groups:** groups have no phone number, so list them in `groups.yaml` (git-ignored):
+
+```powershell
+copy assistant\config\groups.example.yaml assistant\config\groups.yaml
+notepad assistant\config\groups.yaml
+```
+
+Write each group's `name` exactly as WhatsApp shows it (spaces, brackets, emojis), plus
+`aliases` you'd say. Then: `C10 group mein bhejo ke class 8 baje hai`. VisionX reads it back,
+and after your yes it searches WhatsApp for the group, opens it, checks the open chat is exactly
+that group, types the message (line breaks kept, `@all` becomes WhatsApp's "mention all
+members") and presses Send. It brings WhatsApp to the front and clicks into the message box, so
+don't use the mouse or keyboard for those few seconds. If the group already has unsent text,
+or the chat that opens isn't exactly that group, nothing is sent. Group messages can be
+scheduled like any other command (`har roz 7:50 pe C10 group mein link bhejo`).
+
 **Scheduled tasks:** add a time or repetition to any command and VisionX schedules it:
 
 | You say | VisionX does |
@@ -98,8 +115,9 @@ WhatsApp messages are sent without asking again). Tasks run through Windows Task
 as soon as it's back on. You need to be logged in; a WhatsApp send that can't be verified
 (e.g. locked screen) is left typed and logged as not sent.
 
-**WhatsApp auto-send:** after your yes, VisionX presses Enter in WhatsApp, but only if the
-WhatsApp window is in front; otherwise it leaves the message typed and tells you. Turn it off
+**WhatsApp auto-send:** after your yes, VisionX checks that WhatsApp's message box holds exactly
+your message, clicks Send, and says "Sent" only once the box is empty; otherwise it leaves the
+message typed and tells you. Turn it off
 with `auto_send: false` under `whatsapp:` in `settings.yaml`.
 
 ## Tests
@@ -121,6 +139,7 @@ All in `assistant/config/`:
 | `apps.yaml` | Apps VisionX may open: name, aliases, `.exe` path or URI |
 | `websites.yaml` | Sites opened directly; everything else becomes a Google search |
 | `contacts.yaml` | Your contacts: name, aliases, phone (git-ignored; see `contacts.example.yaml`) |
+| `groups.yaml` | Your WhatsApp groups: exact name, aliases (git-ignored; see `groups.example.yaml`) |
 | `corrections.yaml` | Words speech-to-text keeps getting wrong → what you meant (git-ignored; see `corrections.example.yaml`) |
 
 **Teaching VisionX your voice:** when it mishears the same word again and again (check the

@@ -61,6 +61,7 @@ assistant/
     matching.py           # name/alias lookup against the YAML allowlists
     phone.py              # number normalization to E.164 (PK formats) + display format
     contacts.py           # contacts.yaml loading (BaseLoader: numbers stay strings) + matching
+    groups.py             # groups.yaml loading + matching (WhatsApp groups, exact names)
     script.py             # Devanagari / Urdu / Latin detection; speakable() for TTS
     corrections.py        # corrections.yaml: misheard word -> intended word (voice only)
     chrome_profiles.py    # reads Chrome's "Local State" (read-only) to match profiles by name/email
@@ -88,6 +89,7 @@ assistant/
     apps.yaml             # spoken name + aliases -> executable path or URI
     websites.yaml         # name + aliases -> URL; anything else = google.com/search?q= only
     contacts.yaml         # list of name + aliases + phone (git-ignored; contacts.example.yaml committed)
+    groups.yaml           # WhatsApp groups: exact name + aliases (git-ignored; groups.example.yaml committed)
     corrections.yaml      # personal speech fixes (git-ignored; corrections.example.yaml committed)
     schedules.yaml        # scheduled tasks (git-ignored; schedules.example.yaml committed)
     projects.yaml         # name + aliases -> folder path
@@ -216,6 +218,29 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
 - Dates/days ("kal", "parson", weekday names incl. peer/jumma) are resolved by code, not the
   LLM. "9 baje" without AM/PM matches both 9 AM and 9 PM tasks and asks if both exist.
 - Locked screen: a WhatsApp send that can't be verified is left typed and logged as not sent.
+
+## WhatsApp groups (2026-11-19/20, tested live on one of the user's class groups, empty for testing)
+- Skill `send_whatsapp_group` (confirm). Groups have no deep link, so `_whatsapp.send_to_group`
+  drives WhatsApp Desktop through UI Automation; no unofficial APIs.
+- Steps: put the exact name into "Search or start a new chat" with **LegacyIAccessible SetValue**
+  (typed keys don't reach it; ValuePattern sets text without filtering) → pick the "Search
+  results." row whose title starts with the exact name + space/end ("Class C1" ≠ "Class C10 (8 PM)")
+  → open it with the row's DoDefaultAction (mouse click as fallback) → **the message box must be
+  named exactly "Type a message to group <name>"** before anything is typed.
+- Typing needs a **real mouse click** in the message box (UIA SetFocus alone: keys are lost) and
+  WhatsApp in front. `bring_to_front` restores the window and taps Alt before
+  SetForegroundWindow (opening `whatsapp:` alone doesn't beat Windows' focus lock). Every click
+  first checks, via ElementFromPoint, that the spot is that element (matched by type + name: the
+  UIA tree holds many copies of each element), so a covering window is never clicked.
+- Line breaks are typed as Shift+Enter; `@all` is turned into a real mention by invoking the
+  "all  Mention all members in this chat" button. Draft in the group → nothing sent; "Sent" only
+  once the box empties (same as contacts). Text comparisons ignore spacing/line breaks.
+- "C10 ko message bhejo" (a group name sent to the person skill) asks whether to use the group.
+- Next (planned, waiting for the user's data): class automation in steps: (1) classes.yaml with the
+  fixed daily Meet link per class + students, link to the group before class, Meet attendance
+  read from Chrome's People panel, private message to absent students; (2) WhatsApp voice call to
+  absent students, message if no answer; (3) AI conversation on the call (needs a virtual audio
+  cable, the user's OK, and a voice-language choice).
 
 ## Skill notes
 - **open_website:** opens a URL from `websites.yaml`, otherwise only ever

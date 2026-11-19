@@ -15,6 +15,7 @@ def ignored(path: str) -> bool:
 
 def test_private_files_are_ignored():
     assert ignored("assistant/config/contacts.yaml")
+    assert ignored("assistant/config/groups.yaml")
     assert ignored(".env")
     assert ignored("assistant/logs/actions.jsonl")
 

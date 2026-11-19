@@ -3,6 +3,7 @@
 assistant/config/contacts.yaml
 assistant/config/corrections.yaml
 assistant/config/schedules.yaml
+assistant/config/groups.yaml
 
 # Runtime
 assistant/logs/*

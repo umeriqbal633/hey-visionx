@@ -2,6 +2,16 @@ import pytest
 
 from assistant.core.config import Config
 from assistant.core.contacts import parse_contacts
+from assistant.core.groups import parse_groups
+
+# Fake groups. Names deliberately look alike ("C1" vs "C10"), like real class groups do.
+TEST_GROUPS = {
+    "groups": [
+        {"name": "Class C10 (8 PM)", "aliases": ["c10", "c10 group"]},
+        {"name": "Class C1 (6 PM)", "aliases": ["c1"]},
+        {"name": "Family Group 🏠", "aliases": ["family"]},
+    ]
+}
 
 # Fake people. "ali" is deliberately an alias of two contacts (the duplicate case).
 TEST_CONTACTS = {
@@ -33,4 +43,5 @@ def config() -> Config:
         },
         secrets={"VISIONX_ANTHROPIC_KEY": "test-key"},
         contacts=parse_contacts(TEST_CONTACTS),
+        groups=parse_groups(TEST_GROUPS),
     )

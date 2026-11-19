@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from assistant.core.contacts import resolve_contact, suggested_contact
+from assistant.core.groups import find_groups
 from assistant.skills import _whatsapp
 from assistant.skills.base import Ask, Result, Skill
 
@@ -35,6 +36,9 @@ class SendWhatsApp(Skill):
 
     def check(self, contact: str = "", **_) -> str | Ask | None:
         _, question = resolve_contact(self.config.contacts, contact)
+        groups = find_groups(self.config.groups, contact)
+        if question and len(groups) == 1:   # not a person, but exactly one of the user's groups
+            return f"{groups[0].name} is a WhatsApp group; should I send it to the group?"
         suggestion = suggested_contact(self.config.contacts, contact) if question else None
         return Ask(question, {"contact": suggestion}) if suggestion else question
 
