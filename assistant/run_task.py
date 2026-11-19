@@ -13,12 +13,16 @@ import sys
 from assistant.core.config import LOG_FILE, Config, load_config
 from assistant.core.logger import ActionLogger
 from assistant.core.registry import discover
+from assistant.core.runlock import one_at_a_time
 from assistant.core.schedules import load_tasks, save_tasks
 from assistant.skills import _schedules
 from assistant.skills.base import Result
 
 
-def run(task_id: str, config: Config, logger: ActionLogger, speak=None) -> Result:
+LOCK_FILE = LOG_FILE.parent / "run_task.lock"
+
+
+def run(task_id: str, config: Config, logger: ActionLogger, speak=None, lock_file=None) -> Result:
     path = _schedules.schedules_path(config)
     tasks = load_tasks(path)
     task = next((t for t in tasks if t.id == task_id), None)
@@ -40,11 +44,16 @@ def run(task_id: str, config: Config, logger: ActionLogger, speak=None) -> Resul
     skill = discover(config).get(task.skill)
     if skill is None or task.skill in _schedules.SCHEDULING_SKILLS:
         result = Result(False, f"The scheduled task uses an unknown skill '{task.skill}'.")
+        speak_now = speak
     else:
-        try:
-            result = skill.run(**task.params)
-        except Exception:
-            result = Result(False, f"Something went wrong while running {task.skill}.")
+        with one_at_a_time(lock_file or LOCK_FILE):          # tasks at the same minute take turns
+            try:
+                result = skill.run(**task.params)
+            except Exception:
+                result = Result(False, f"Something went wrong while running {task.skill}.")
+            if speak and sched.get("announce", True):
+                speak(f"Scheduled task: {result.reply}")
+        speak_now = None
 
     logger.log(command=f"[scheduled {task.id}] {task.description}", skill=task.skill, params=task.params,
                confirmed=True, ok=result.ok, reply=result.reply, scheduled=True, task_id=task.id)
@@ -56,8 +65,8 @@ def run(task_id: str, config: Config, logger: ActionLogger, speak=None) -> Resul
         except Exception:
             pass
 
-    if speak and sched.get("announce", True):
-        speak(f"Scheduled task: {result.reply}")
+    if speak_now and sched.get("announce", True):
+        speak_now(f"Scheduled task: {result.reply}")
     return result
 
 

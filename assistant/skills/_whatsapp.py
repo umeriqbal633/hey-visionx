@@ -229,6 +229,24 @@ def result_matches(title: str, group: str) -> bool:
     return t == g or t.startswith(g + " ")
 
 
+def matching_chats(titles: list[str], group: str) -> int:
+    """How many different chats in the search results carry exactly this name. Each chat shows
+    as several rows ('NAME 2:05 am You: …' and 'NAME 2:05 am'); its last-activity label
+    ('2:05 am', 'Yesterday', '26/10/2026') tells chats apart. Seen live: two groups both named
+    'VXC C17 (7PM)', one from October."""
+    g, labels = _squash(group), set()
+    for title in titles:
+        if not result_matches(title, group):
+            continue
+        rest = _UNREAD.sub("", _squash(title))[len(g):].split()
+        label = rest[:2] if len(rest) > 1 and rest[1] in ("am", "pm") else rest[:1]
+        labels.add(" ".join(label))
+    return len(labels)
+
+
+AMBIGUOUS = "ambiguous"
+
+
 class ChatWindow(Protocol):
     def compose(self) -> ComposeBox | None: ...
     def search(self, text: str) -> bool: ...
@@ -270,11 +288,24 @@ class _UIAWindow:
         except Exception:
             pass
 
+    def _search_box(self) -> Any:
+        """The search box. While it holds text its accessible name is BLANK (seen live
+        2026-11-20), so fall back to the one unnamed edit box (the message box always has a name)."""
+        box = _edit_named(self._uia, self._window, SEARCH_PREFIX)
+        if box:
+            return box
+        edits = self._window.FindAll(4, self._uia.CreatePropertyCondition(30003, 50004))
+        for i in range(edits.Length):
+            el = edits.GetElement(i)
+            if not (el.CurrentName or "").strip():
+                return el
+        return None
+
     def _set_search(self, text: str) -> bool:
         """Learned live (2026-11-19): typed keys don't reach the search box, and ValuePattern
         sets the text without filtering; the LegacyIAccessible SetValue does filter."""
         try:
-            box = _edit_named(self._uia, self._window, SEARCH_PREFIX)
+            box = self._search_box()
             if not box:
                 return False
             box.SetFocus()
@@ -399,6 +430,7 @@ def find_window() -> ChatWindow | None:
 
 
 def send_to_group(group: str, message: str, send: bool = True, timeout: float = 10.0,
+                  pick_newest: bool = False,
                   clear_timeout: float = 4.0,
                   open_app: Callable[[], None] = lambda: launch("whatsapp:"),
                   window: Callable[[], ChatWindow | None] = find_window,
@@ -438,6 +470,13 @@ def send_to_group(group: str, message: str, send: bool = True, timeout: float = 
         if not title:
             win.clear_search()
             return NOT_FOUND
+        sleep(0.5)                                               # let the list finish filling
+        if matching_chats(win.results(), group) > 1:             # two groups, same name
+            if not pick_newest:
+                win.clear_search()
+                return AMBIGUOUS
+            # WhatsApp lists the most recently active chat first: use that one.
+            title = next(t for t in win.results() if result_matches(t, group))
         for click in (False, True):                              # accessibility action, then a click
             win.open_result(title, click=click)
             if wait(target_box, 2.0):

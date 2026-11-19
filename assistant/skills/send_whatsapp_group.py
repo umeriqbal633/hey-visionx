@@ -59,7 +59,8 @@ class SendWhatsAppGroup(Skill):
         auto = bool(settings.get("auto_send", False))
         try:
             status = _whatsapp.send_to_group(found.name, message.strip(), send=auto,
-                                             timeout=float(settings.get("window_timeout", 10)))
+                                             timeout=float(settings.get("window_timeout", 10)),
+                                             pick_newest=found.pick_newest)
         except OSError:
             return Result(False, "I couldn't open WhatsApp; is WhatsApp Desktop installed?")
         name = found.name
@@ -71,6 +72,8 @@ class SendWhatsAppGroup(Skill):
             _whatsapp.NOT_FOUND: (f"I couldn't find the group {name} in WhatsApp; "
                                   "check that its name in groups.yaml matches exactly"),
             _whatsapp.WRONG_CHAT: f"I couldn't open the group {name}, so I didn't type anything",
+            _whatsapp.AMBIGUOUS: (f"WhatsApp has more than one group named {name}, so I sent nothing; "
+                                  "please rename the old one"),
             _whatsapp.NOT_FRONT: "WhatsApp didn't come to the front, so I didn't type anything",
             _whatsapp.DRAFT_CONFLICT: f"the group {name} already had unsent text, so I didn't send anything",
             _whatsapp.NO_TEXT: f"I couldn't see the message in the box, so nothing was sent to {name}",

@@ -236,6 +236,15 @@ Adding a skill means adding one file in `skills/`. No changes to core code.
   "all  Mention all members in this chat" button. Draft in the group → nothing sent; "Sent" only
   once the box empties (same as contacts). Text comparisons ignore spacing/line breaks.
 - "C10 ko message bhejo" (a group name sent to the person skill) asks whether to use the group.
+- While the search box holds text its accessible name is BLANK: find it as the unnamed edit box.
+- Two WhatsApp groups can share a name (old batches): then nothing is sent (`ambiguous`), unless
+  groups.yaml says `duplicates: newest` for that group (user's choice) → the first search result,
+  i.e. the most recently active one.
+- Scheduled tasks firing at the same minute take turns through a file lock
+  (`core/runlock.py`, `logs/run_task.lock`, wait ≤ 5 min, then run anyway).
+- The user's class-link schedules (2026-11-20): one weekday/weekly task per class group, sent
+  10 minutes before class, message verbatim with @all. Real group names live only in
+  groups.yaml / schedules.yaml (git-ignored).
 - Next (planned, waiting for the user's data): class automation in steps: (1) classes.yaml with the
   fixed daily Meet link per class + students, link to the group before class, Meet attendance
   read from Chrome's People panel, private message to absent students; (2) WhatsApp voice call to

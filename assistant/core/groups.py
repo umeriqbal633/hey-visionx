@@ -17,6 +17,9 @@ from assistant.core.matching import join_or, normalize, suggest
 class Group:
     name: str
     aliases: tuple[str, ...] = ()
+    # When WhatsApp has two groups with this exact name: False = send nothing (default);
+    # True = use the most recently active one (the user's choice, per group).
+    pick_newest: bool = False
 
     def names(self) -> list[str]:
         return [self.name, *self.aliases]
@@ -31,7 +34,8 @@ def parse_groups(data: Any) -> list[Group]:
         aliases = entry.get("aliases") or []
         if isinstance(aliases, str):
             aliases = [aliases]
-        groups.append(Group(str(entry["name"]).strip(), tuple(str(a) for a in aliases)))
+        newest = str(entry.get("duplicates") or "").strip().lower() == "newest"
+        groups.append(Group(str(entry["name"]).strip(), tuple(str(a) for a in aliases), newest))
     return groups
 
 

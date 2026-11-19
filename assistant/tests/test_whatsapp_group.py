@@ -314,3 +314,60 @@ def test_group_message_can_be_scheduled(sched_env):
                         "Schedule it? (yes/no)"]
     tasks = load_tasks(tmp_path / "schedules.yaml")
     assert tasks[0].skill == "send_whatsapp_group" and tasks[0].params == {"group": "c10", "message": "good morning"}
+
+
+# --- two groups with the same name; tasks taking turns --------------------------------------------
+def test_matching_chats_counts_distinct_groups():
+    one = ["Class C10 (8 PM) Yesterday Ali: ok", "Class C10 (8 PM) Yesterday"]
+    two = one + ["Class C10 (8 PM) 26/10/2026 You: hi", "Class C10 (8 PM) 26/10/2026"]
+    clock = ["2 unread messages Class C10 (8 PM) 2:05 am You: x", "Class C10 (8 PM) 2:05 am"]
+    assert w.matching_chats(one, GROUP) == 1
+    assert w.matching_chats(two, GROUP) == 2
+    assert w.matching_chats(clock, GROUP) == 1
+    assert w.matching_chats(one + ["Class C1 (6 PM) Yesterday"], GROUP) == 1
+
+
+def test_two_groups_with_the_same_name_sends_nothing(config):
+    app = FakeWhatsApp(open_chat="Saad", results=["Class C10 (8 PM) Yesterday", "Class C10 (8 PM) 26/10/2026"])
+    status, _ = send(app)
+    assert status == w.AMBIGUOUS and app.typed == [] and app.cleared
+    with patch(SEND, return_value=w.AMBIGUOUS):
+        result = SendWhatsAppGroup(config).run(group="c10", message="hi")
+    assert not result.ok and "more than one group" in result.reply
+
+
+def test_scheduled_tasks_take_turns(tmp_path):
+    from assistant.core.runlock import one_at_a_time
+    lock = tmp_path / "run.lock"
+    clock = Clock()
+    with one_at_a_time(lock) as first:
+        assert first is True
+        with one_at_a_time(lock, wait=3, sleep=clock.sleep, clock=clock.now) as second:
+            assert second is False and clock.t >= 3          # waited, then gave up (runs anyway)
+    with one_at_a_time(lock, wait=0) as third:              # released after the first finished
+        assert third is True
+
+
+def test_pick_newest_opens_the_first_listed_group():
+    app = FakeWhatsApp(open_chat="Saad", results=["Class C10 (8 PM) Yesterday", "Class C10 (8 PM) 26/10/2026"])
+    clock = Clock()
+    status = w.send_to_group(GROUP, "hi", timeout=5, pick_newest=True, open_app=lambda: None,
+                             window=lambda: app, foreground=lambda: "whatsapp.root.exe",
+                             sleep=clock.sleep, clock=clock.now)
+    assert status == w.SENT and app.typed == [(GROUP, "hi")]
+
+
+def test_duplicates_newest_setting_is_per_group(tmp_path):
+    p = tmp_path / "groups.yaml"
+    p.write_text("groups:\n  - name: A\n    duplicates: newest\n  - name: B\n", encoding="utf-8")
+    a, b = load_groups(p)
+    assert a.pick_newest is True and b.pick_newest is False
+
+
+def test_skill_passes_pick_newest(config):
+    from assistant.core.groups import Group
+    config.groups = [Group("Class C10 (8 PM)", ("c10",), True)]
+    config.settings["whatsapp"] = {"auto_send": True}
+    with patch(SEND, return_value=w.SENT) as s:
+        SendWhatsAppGroup(config).run(group="c10", message="hi")
+    assert s.call_args.kwargs["pick_newest"] is True
