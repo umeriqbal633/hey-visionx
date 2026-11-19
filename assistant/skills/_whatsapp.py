@@ -233,7 +233,7 @@ def matching_chats(titles: list[str], group: str) -> int:
     """How many different chats in the search results carry exactly this name. Each chat shows
     as several rows ('NAME 2:05 am You: …' and 'NAME 2:05 am'); its last-activity label
     ('2:05 am', 'Yesterday', '26/10/2026') tells chats apart. Seen live: two groups both named
-    'VXC C17 (7PM)', one from October."""
+    'Class C17 (7PM)', one from October."""
     g, labels = _squash(group), set()
     for title in titles:
         if not result_matches(title, group):
